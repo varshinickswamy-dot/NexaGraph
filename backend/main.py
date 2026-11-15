@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from neo4j import GraphDatabase
 from pydantic import BaseModel, Field
+from backend.database import check_database_connection
 
 load_dotenv()
 
@@ -177,6 +178,11 @@ def health():
             status_code=503,
             detail="Neo4j is unavailable.",
         ) from exc
+
+
+@app.get("/health/database")
+def database_health():
+    return check_database_connection()
 
 
 @app.get("/graph")

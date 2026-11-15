@@ -1,0 +1,859 @@
+
+from contextlib import asynccontextmanager
+import csv
+import os
+import re
+from pathlib import Path
+
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from neo4j import GraphDatabase
+from pydantic import BaseModel, Field
+
+load_dotenv()
+
+NEO4J_URI = os.getenv("NEO4J_URI")
+NEO4J_USER = os.getenv("NEO4J_USER")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
+
+driver = None
+GRAPH_STATE = {"nodes": [], "edges": []}
+ROOT_DIR = Path(__file__).resolve().parents[1]
+DATA_DIR = ROOT_DIR / "data"
+
+
+def load_fallback_graph():
+    assets_path = DATA_DIR / "assets.csv"
+    connections_path = DATA_DIR / "connections.csv"
+
+    nodes_by_id = {}
+    if assets_path.exists():
+        with assets_path.open("r", newline="", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                cleaned = {key: (value.strip() if isinstance(value, str) else value) for key, value in row.items()}
+                asset_id = cleaned.get("id")
+                if not asset_id:
+                    continue
+                nodes_by_id[asset_id] = {
+                    "id": asset_id,
+                    "name": cleaned.get("name", ""),
+                    "type": cleaned.get("type", ""),
+                    "ip": cleaned.get("ip", ""),
+                    "criticality": cleaned.get("criticality", "Medium"),
+                    "exposed": cleaned.get("exposed", "No"),
+                    "compromised": cleaned.get("compromised", "No"),
+                }
+
+    nodes = list(nodes_by_id.values())
+
+    edges = []
+    if connections_path.exists():
+        with connections_path.open("r", newline="", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                source = (row.get("source") or "").strip()
+                target = (row.get("target") or "").strip()
+                if not source or not target:
+                    continue
+                relationship = (row.get("relationship") or "CONNECTS").strip().upper()
+                protocol = (row.get("protocol") or "TCP").strip()
+                edges.append({
+                    "source": source,
+                    "target": target,
+                    "relationship": relationship,
+                    "protocol": protocol,
+                })
+
+    return {"nodes": nodes, "edges": edges}
+
+
+def ensure_fallback_graph():
+    if not GRAPH_STATE["nodes"] and not GRAPH_STATE["edges"]:
+        GRAPH_STATE.update(load_fallback_graph())
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global driver
+
+    if all([NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD]):
+        driver = GraphDatabase.driver(
+            NEO4J_URI,
+            auth=(NEO4J_USER, NEO4J_PASSWORD),
+        )
+        driver.verify_connectivity()
+    else:
+        driver = None
+        ensure_fallback_graph()
+
+    yield
+
+    if driver is not None:
+        driver.close()
+
+
+app = FastAPI(title="NexaGraph AI", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+class AssetInput(BaseModel):
+    id: str = Field(min_length=1, max_length=50)
+    name: str = Field(min_length=1, max_length=100)
+    type: str = Field(min_length=1, max_length=50)
+    ip: str = Field(min_length=1, max_length=100)
+    criticality: str
+    exposed: str
+    compromised: str
+
+
+class ConnectionInput(BaseModel):
+    source: str = Field(min_length=1, max_length=50)
+    target: str = Field(min_length=1, max_length=50)
+    relationship: str = Field(min_length=1, max_length=40)
+    protocol: str = Field(default="TCP", max_length=30)
+
+
+def graph_data():
+    if driver is None:
+        ensure_fallback_graph()
+        return {
+            "nodes": [dict(node) for node in GRAPH_STATE["nodes"]],
+            "edges": [dict(edge) for edge in GRAPH_STATE["edges"]],
+        }
+
+    with driver.session() as session:
+        nodes_result = session.run("""
+            MATCH (a:Asset)
+            RETURN collect({
+                id: a.id,
+                name: a.name,
+                type: a.type,
+                ip: a.ip,
+                criticality: a.criticality,
+                exposed: a.exposed,
+                compromised: a.compromised
+            }) AS nodes
+        """).single()
+
+        edges_result = session.run("""
+            MATCH (a:Asset)-[r]->(b:Asset)
+            RETURN collect({
+                source: a.id,
+                target: b.id,
+                relationship: type(r),
+                protocol: r.protocol
+            }) AS edges
+        """).single()
+
+        return {
+            "nodes": nodes_result["nodes"],
+            "edges": edges_result["edges"],
+        }
+
+
+@app.get("/")
+def home():
+    return {"message": "NexaGraph AI Backend Running"}
+
+
+@app.get("/health")
+def health():
+    if driver is None:
+        ensure_fallback_graph()
+        return {"status": "healthy", "neo4j": "fallback-local-csv"}
+
+    try:
+        driver.verify_connectivity()
+        return {"status": "healthy", "neo4j": "connected"}
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Neo4j is unavailable.",
+        ) from exc
+
+
+@app.get("/graph")
+def get_graph():
+    try:
+        return graph_data()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not load graph from the configured source.",
+        ) from exc
+
+
+@app.post("/assets", status_code=201)
+def add_asset(asset: AssetInput):
+    asset_id = asset.id.strip()
+    if not asset_id:
+        raise HTTPException(400, "Asset ID cannot be blank.")
+
+    if asset.criticality not in ["Low", "Medium", "High", "Critical"]:
+        raise HTTPException(400, "Invalid criticality.")
+
+    if asset.exposed not in ["Yes", "No"]:
+        raise HTTPException(400, "Exposed must be Yes or No.")
+
+    if asset.compromised not in ["Yes", "No"]:
+        raise HTTPException(400, "Compromised must be Yes or No.")
+
+    try:
+        if driver is None:
+            ensure_fallback_graph()
+            if any(node["id"] == asset_id for node in GRAPH_STATE["nodes"]):
+                raise HTTPException(status_code=409, detail=f"Asset ID '{asset_id}' already exists.")
+            GRAPH_STATE["nodes"].append({
+                "id": asset_id,
+                "name": asset.name.strip(),
+                "type": asset.type.strip(),
+                "ip": asset.ip.strip(),
+                "criticality": asset.criticality,
+                "exposed": asset.exposed,
+                "compromised": asset.compromised,
+            })
+            return {"message": "Asset added successfully.", "graph": graph_data()}
+
+        with driver.session() as session:
+            result = session.run("""
+                MATCH (existing:Asset {id: $id})
+                RETURN existing
+            """, id=asset_id).single()
+
+            if result:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Asset ID '{asset_id}' already exists.",
+                )
+
+            session.run("""
+                CREATE (a:Asset {
+                    id: $id,
+                    name: $name,
+                    type: $type,
+                    ip: $ip,
+                    criticality: $criticality,
+                    exposed: $exposed,
+                    compromised: $compromised
+                })
+            """, **{
+                **asset.model_dump(),
+                "id": asset_id,
+                "name": asset.name.strip(),
+                "type": asset.type.strip(),
+                "ip": asset.ip.strip(),
+            })
+
+        return {"message": "Asset added successfully.", "graph": graph_data()}
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(503, "Failed to save asset to Neo4j.") from exc
+
+
+@app.post("/connections", status_code=201)
+def add_connection(connection: ConnectionInput):
+    source = connection.source.strip()
+    target = connection.target.strip()
+    relationship = connection.relationship.strip().upper()
+
+    if not re.fullmatch(r"[A-Z][A-Z0-9_]{0,39}", relationship):
+        raise HTTPException(400, "Use letters, numbers and underscores for the relationship.")
+
+    if source == target:
+        raise HTTPException(400, "Source and target must be different assets.")
+
+    try:
+        if driver is None:
+            ensure_fallback_graph()
+            if not any(node["id"] == source for node in GRAPH_STATE["nodes"]):
+                raise HTTPException(status_code=404, detail="Source or target asset was not found.")
+            if not any(node["id"] == target for node in GRAPH_STATE["nodes"]):
+                raise HTTPException(status_code=404, detail="Source or target asset was not found.")
+
+            if any(
+                edge["source"] == source
+                and edge["target"] == target
+                and edge["relationship"] == relationship
+                for edge in GRAPH_STATE["edges"]
+            ):
+                return {"message": "Connection already exists.", "graph": graph_data()}
+
+            GRAPH_STATE["edges"].append({
+                "source": source,
+                "target": target,
+                "relationship": relationship,
+                "protocol": connection.protocol.strip(),
+            })
+            return {"message": "Connection added successfully.", "graph": graph_data()}
+
+        with driver.session() as session:
+            result = session.run("""
+                MATCH (a:Asset {id: $source})
+                MATCH (b:Asset {id: $target})
+                RETURN a.id AS source, b.id AS target
+            """, source=source, target=target).single()
+
+            if not result:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Source or target asset was not found.",
+                )
+
+            session.run(f"""
+                MATCH (a:Asset {{id: $source}})
+                MATCH (b:Asset {{id: $target}})
+                CREATE (a)-[r:{relationship} {{
+                    protocol: $protocol
+                }}]->(b)
+            """, source=source, target=target, protocol=connection.protocol.strip())
+
+        return {
+            "message": "Connection added successfully.",
+            "graph": graph_data(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(503, "Failed to save connection to Neo4j.") from exc
+
+
+# Update an existing asset
+@app.put("/assets/{asset_id}")
+def update_asset(asset_id: str, asset: AssetInput):
+    if asset.id.strip() != asset_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Asset ID cannot be changed."
+        )
+
+    if asset.criticality not in ["Low", "Medium", "High", "Critical"]:
+        raise HTTPException(status_code=400, detail="Invalid criticality.")
+
+    if asset.exposed not in ["Yes", "No"]:
+        raise HTTPException(status_code=400, detail="Invalid exposed value.")
+
+    if asset.compromised not in ["Yes", "No"]:
+        raise HTTPException(status_code=400, detail="Invalid compromised value.")
+
+    try:
+        if driver is None:
+            ensure_fallback_graph()
+            for index, node in enumerate(GRAPH_STATE["nodes"]):
+                if node["id"] == asset_id:
+                    GRAPH_STATE["nodes"][index] = {
+                        "id": asset_id,
+                        "name": asset.name.strip(),
+                        "type": asset.type.strip(),
+                        "ip": asset.ip.strip(),
+                        "criticality": asset.criticality,
+                        "exposed": asset.exposed,
+                        "compromised": asset.compromised,
+                    }
+                    return {"message": "Asset updated successfully.", "graph": graph_data()}
+            raise HTTPException(status_code=404, detail="Asset not found.")
+
+        with driver.session() as session:
+            result = session.run("""
+                MATCH (a:Asset {id: $id})
+                SET a.name = $name,
+                    a.type = $type,
+                    a.ip = $ip,
+                    a.criticality = $criticality,
+                    a.exposed = $exposed,
+                    a.compromised = $compromised
+                RETURN a.id AS id
+            """, **asset.model_dump()).single()
+
+            if not result:
+                raise HTTPException(status_code=404, detail="Asset not found.")
+
+        return {
+            "message": "Asset updated successfully.",
+            "graph": graph_data()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Failed to update asset."
+        ) from exc
+
+
+# Delete an asset and its connected relationships
+@app.delete("/assets/{asset_id}")
+def delete_asset(asset_id: str):
+    try:
+        if driver is None:
+            ensure_fallback_graph()
+            original_length = len(GRAPH_STATE["nodes"])
+            GRAPH_STATE["nodes"] = [node for node in GRAPH_STATE["nodes"] if node["id"] != asset_id]
+            GRAPH_STATE["edges"] = [
+                edge for edge in GRAPH_STATE["edges"]
+                if edge["source"] != asset_id and edge["target"] != asset_id
+            ]
+            if len(GRAPH_STATE["nodes"]) == original_length:
+                raise HTTPException(status_code=404, detail="Asset not found.")
+            return {
+                "message": "Asset and its connections deleted successfully.",
+                "graph": graph_data()
+            }
+
+        with driver.session() as session:
+            result = session.run("""
+                MATCH (a:Asset {id: $id})
+                DETACH DELETE a
+                RETURN count(*) AS deleted
+            """, id=asset_id).single()
+
+            if not result or result["deleted"] == 0:
+                raise HTTPException(status_code=404, detail="Asset not found.")
+
+        return {
+            "message": "Asset and its connections deleted successfully.",
+            "graph": graph_data()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Failed to delete asset."
+        ) from exc
+
+
+# Delete connections between two assets for a specified relationship type
+class DeleteConnectionInput(BaseModel):
+    source: str
+    target: str
+    relationship: str
+
+
+@app.delete("/connections")
+def delete_connection(connection: DeleteConnectionInput):
+    import re
+
+    relationship = connection.relationship.strip().upper()
+
+    if not re.fullmatch(r"[A-Z][A-Z0-9_]{0,39}", relationship):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid relationship type."
+        )
+
+    try:
+        if driver is None:
+            ensure_fallback_graph()
+            original_length = len(GRAPH_STATE["edges"])
+            GRAPH_STATE["edges"] = [
+                edge for edge in GRAPH_STATE["edges"]
+                if not (
+                    edge["source"] == connection.source
+                    and edge["target"] == connection.target
+                    and edge["relationship"] == relationship
+                )
+            ]
+            if len(GRAPH_STATE["edges"]) == original_length:
+                raise HTTPException(status_code=404, detail="Connection not found.")
+            return {"message": "Connection deleted successfully.", "graph": graph_data()}
+
+        with driver.session() as session:
+            result = session.run(f"""
+                MATCH (a:Asset {{id: $source}})
+                MATCH (b:Asset {{id: $target}})
+                MATCH (a)-[r:{relationship}]->(b)
+                WITH collect(r) AS relationships
+                FOREACH (rel IN relationships | DELETE rel)
+                RETURN size(relationships) AS deleted
+            """,
+                source=connection.source,
+                target=connection.target
+            ).single()
+
+            if not result or result["deleted"] == 0:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Connection not found."
+                )
+
+        return {
+            "message": "Connection deleted successfully.",
+            "graph": graph_data()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Failed to delete connection."
+        ) from exc
+
+# Shared path analysis and scoring are used by both regular analysis and
+# remediation simulation, so before/after scores stay consistent.
+MAX_PATH_DEPTH = 8
+MAX_PATHS = 100
+SCORING_NOTE = (
+    "Prototype heuristic based on exposure, compromise, asset criticality, "
+    "and path structure. Not a probability of a real attack."
+)
+
+
+
+def build_remediation_recommendations(paths, nodes, limit=3):
+    """Rank connections in residual attack paths for security review.
+
+    Recommendations are triage suggestions, not proof of a vulnerability.
+    This function never changes the database.
+    """
+    if not paths:
+        return []
+
+    try:
+        limit = max(0, min(int(limit), 10))
+    except (TypeError, ValueError):
+        limit = 3
+
+    if limit == 0:
+        return []
+
+    node_map = {node["id"]: node for node in nodes if "id" in node}
+    edge_stats = {}
+
+    for path in paths:
+        try:
+            risk = max(0, min(100, int(path.get("risk_score", 0))))
+        except (TypeError, ValueError):
+            risk = 0
+
+        # Count each connection at most once per path.
+        seen_in_path = set()
+
+        for edge in path.get("connections", []):
+            source = edge.get("source")
+            target = edge.get("target")
+            relationship = str(
+                edge.get("relationship") or "CONNECTS"
+            ).upper()
+
+            if source is None or target is None:
+                continue
+
+            key = (source, target, relationship)
+
+            if key in seen_in_path:
+                continue
+            seen_in_path.add(key)
+
+            if key not in edge_stats:
+                edge_stats[key] = {
+                    "path_count": 0,
+                    "weighted_score": 0,
+                    "max_path_risk": 0,
+                }
+
+            stats = edge_stats[key]
+            stats["path_count"] += 1
+            stats["weighted_score"] += risk
+            stats["max_path_risk"] = max(
+                stats["max_path_risk"], risk
+            )
+
+    ranked = sorted(
+        edge_stats.items(),
+        key=lambda item: (
+            item[1]["max_path_risk"],
+            item[1]["path_count"],
+            item[1]["weighted_score"],
+        ),
+        reverse=True,
+    )
+
+    recommendations = []
+
+    for (source, target, relationship), stats in ranked[:limit]:
+        source_node = node_map.get(source, {})
+        target_node = node_map.get(target, {})
+
+        recommendations.append({
+            "action_type": "review-connection",
+            "source_id": source,
+            "source_name": source_node.get("name", str(source)),
+            "destination_id": target,
+            "destination_name": target_node.get("name", str(target)),
+            "relationship": relationship,
+            "paths_affected": stats["path_count"],
+            "highest_path_risk": stats["max_path_risk"],
+            "priority_score": stats["weighted_score"],
+            "reason": (
+                f"This connection appears in {stats['path_count']} "
+                f"remaining qualifying path(s), including a path "
+                f"scored {stats['max_path_risk']}/100. Review whether "
+                "the access is required and restrict it if appropriate."
+            ),
+        })
+
+    return recommendations
+
+
+
+def analyze_graph_snapshot(nodes, edges, max_depth=MAX_PATH_DEPTH, max_paths=MAX_PATHS):
+    """Analyze directed paths on an in-memory graph snapshot without database writes."""
+    node_map = {node["id"]: node for node in nodes}
+    adjacency = {node["id"]: [] for node in nodes}
+
+    for edge in edges:
+        source = edge.get("source")
+        target = edge.get("target")
+        if source in adjacency and target in node_map:
+            adjacency[source].append(edge)
+
+    sources = [
+        node for node in nodes
+        if node.get("exposed") == "Yes" or node.get("compromised") == "Yes"
+    ]
+    targets = {
+        node["id"] for node in nodes
+        if str(node.get("criticality", "")).lower() == "critical"
+    }
+
+    paths = []
+    limit_reached = False
+
+    def calculate_score(path_nodes):
+        score = 0
+        if path_nodes[0].get("exposed") == "Yes":
+            score += 30
+        if path_nodes[0].get("compromised") == "Yes":
+            score += 40
+
+        # Preserve the scoring formula used by the original /attack-paths route.
+        score += 30
+        for node in path_nodes[1:-1]:
+            level = str(node.get("criticality", "")).lower()
+            score += {"low": 2, "medium": 5, "high": 10, "critical": 15}.get(level, 0)
+            if node.get("compromised") == "Yes":
+                score += 10
+        return min(score, 100)
+
+    def explore(current_id, path_ids, path_edges):
+        nonlocal limit_reached
+        if len(paths) >= max_paths:
+            limit_reached = True
+            return
+
+        if current_id in targets and len(path_ids) > 1:
+            path_nodes = [node_map[node_id] for node_id in path_ids]
+            score = calculate_score(path_nodes)
+            paths.append({
+                "path": path_nodes,
+                "connections": path_edges,
+                "risk_score": score,
+                "risk_level": (
+                    "Critical" if score >= 80 else
+                    "High" if score >= 60 else
+                    "Medium" if score >= 35 else "Low"
+                ),
+            })
+            return
+
+        if len(path_ids) >= max_depth:
+            return
+
+        for edge in adjacency.get(current_id, []):
+            next_id = edge["target"]
+            if next_id in path_ids:
+                continue
+            explore(next_id, path_ids + [next_id], path_edges + [edge])
+            if len(paths) >= max_paths:
+                limit_reached = True
+                return
+
+    for source in sources:
+        explore(source["id"], [source["id"]], [])
+        if len(paths) >= max_paths:
+            limit_reached = True
+            break
+
+    paths.sort(key=lambda item: item["risk_score"], reverse=True)
+    return {
+        "paths": paths,
+        "total_paths": len(paths),
+        "max_paths_reached": limit_reached,
+        "scoring_note": SCORING_NOTE,
+    }
+
+
+@app.get("/attack-paths")
+def get_attack_paths():
+    """Find directed paths from exposed/compromised assets to critical assets."""
+    try:
+        data = graph_data()
+        return analyze_graph_snapshot(data["nodes"], data["edges"])
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Could not analyze attack paths.",
+        ) from exc
+
+class RemediationSimulationInput(BaseModel):
+    action_type: str = Field(
+        description="isolate-asset or remove-connection"
+    )
+    target_id: str | None = None
+    source_id: str | None = None
+    destination_id: str | None = None
+    relationship: str | None = None
+
+
+@app.post("/simulate-remediation")
+def simulate_remediation(request: RemediationSimulationInput):
+    """
+    Simulate a remediation action on a temporary graph snapshot.
+    Never changes Neo4j.
+    """
+    try:
+        data = graph_data()
+        original_nodes = data["nodes"]
+        original_edges = data["edges"]
+
+        # Copy the graph so the simulation cannot mutate the source data.
+        simulated_nodes = [dict(node) for node in original_nodes]
+        simulated_edges = [dict(edge) for edge in original_edges]
+
+        if request.action_type == "isolate-asset":
+            if not request.target_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="target_id is required to isolate an asset.",
+                )
+
+            if not any(
+                node["id"] == request.target_id
+                for node in simulated_nodes
+            ):
+                raise HTTPException(
+                    status_code=404,
+                    detail="Asset to isolate was not found.",
+                )
+
+            # Remove the asset and all its incident connections
+            # from this temporary graph only.
+            simulated_nodes = [
+                node for node in simulated_nodes
+                if node["id"] != request.target_id
+            ]
+            simulated_edges = [
+                edge for edge in simulated_edges
+                if edge["source"] != request.target_id
+                and edge["target"] != request.target_id
+            ]
+
+        elif request.action_type == "remove-connection":
+            if not all([
+                request.source_id,
+                request.destination_id,
+                request.relationship,
+            ]):
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "source_id, destination_id and relationship "
+                        "are required."
+                    ),
+                )
+
+            relationship = request.relationship.strip().upper()
+
+            if not re.fullmatch(r"[A-Z][A-Z0-9_]{0,39}", relationship):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid relationship type.",
+                )
+
+            matching = [
+                edge for edge in simulated_edges
+                if edge["source"] == request.source_id
+                and edge["target"] == request.destination_id
+                and str(edge.get("relationship", "")).upper()
+                    == relationship
+            ]
+
+            if not matching:
+                raise HTTPException(
+                    status_code=404,
+                    detail="The specified connection was not found.",
+                )
+
+            # Remove matching directed relationships from the snapshot.
+            simulated_edges = [
+                edge for edge in simulated_edges
+                if not (
+                    edge["source"] == request.source_id
+                    and edge["target"] == request.destination_id
+                    and str(edge.get("relationship", "")).upper()
+                        == relationship
+                )
+            ]
+
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "action_type must be isolate-asset "
+                    "or remove-connection."
+                ),
+            )
+
+        before = analyze_graph_snapshot(original_nodes, original_edges)
+        after = analyze_graph_snapshot(simulated_nodes, simulated_edges)
+
+        before_max = max(
+            (path["risk_score"] for path in before["paths"]),
+            default=0,
+        )
+        after_max = max(
+            (path["risk_score"] for path in after["paths"]),
+            default=0,
+        )
+
+        return {
+            "action_type": request.action_type,
+            "simulated_only": True,
+            "database_modified": False,
+            "before": before,
+            "after": after,
+            "paths_eliminated": max(
+                0, before["total_paths"] - after["total_paths"]
+            ),
+            "highest_risk_before": before_max,
+            "highest_risk_after": after_max,
+            "risk_score_reduction": before_max - after_max,
+            "recommendations": build_remediation_recommendations(
+                after["paths"], simulated_nodes
+            ),
+            "scoring_note": (
+                f"{SCORING_NOTE} Path enumeration is limited to depth "
+                f"{MAX_PATH_DEPTH} and {MAX_PATHS} paths per analysis."
+            ),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Remediation simulation failed.",
+        ) from exc

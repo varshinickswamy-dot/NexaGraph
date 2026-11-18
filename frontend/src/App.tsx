@@ -1,10 +1,27 @@
-
-import { useEffect, useRef, useState } from "react";
+import NetworkTopology from "./NetworkTopology";
+import VulnerabilityIntelligence from "./VulnerabilityIntelligence";
+import AssetVulnerabilityPanel from "./AssetVulnerabilityPanel";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import cytoscape from "cytoscape";
 import "./App.css";
+import "./theme-overrides.css";
+import IncidentManagement from "./IncidentManagement";
+import SecurityEventMonitoring from "./SecurityEventMonitoring";
+import SecurityIntelligence from "./SecurityIntelligence";
+import TeamManagement from "./TeamManagement";
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const AUTH_TOKEN_KEY = "nexagraph-access-token";
+import "./AuthScreen.css";
+import AuthScreen from "./AuthScreen";
 
-const API_URL = "http://127.0.0.1:8000";
+type AuthUser = {
+  id: string;
+  full_name: string;
+  email: string;
+  organization_id: string | null;
+  role: string;
+};
 
 type NodeData = {
   id: string;
@@ -14,6 +31,7 @@ type NodeData = {
   criticality: string;
   exposed: string;
   compromised: string;
+  environment?: string;
 };
 
 type EdgeData = {
@@ -85,8 +103,11 @@ const emptyConnectionForm: ConnectionForm = {
   protocol: "TCP",
 };
 
-async function apiRequest(path: string, options?: RequestInit) {
-  const response = await fetch(`${API_URL}${path}`, options);
+async function apiRequest(path: string, options: RequestInit = {}) {
+  const headers = new Headers(options.headers);
+  const token = window.localStorage.getItem(AUTH_TOKEN_KEY);
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const response = await fetch(`${API_URL}${path}`, { ...options, headers });
   const result = await response.json().catch(() => ({}));
 
   if (!response.ok) {
@@ -100,13 +121,70 @@ async function apiRequest(path: string, options?: RequestInit) {
   return result;
 }
 
+type AppTheme = "dark" | "light";
+
 function App() {
+  const [theme, setTheme] = useState<AppTheme>(() => {
+    const saved = window.localStorage.getItem("nexagraph-theme");
+    return saved === "light" ? "light" : "dark";
+  });
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem("nexagraph-theme", theme);
+  }, [theme]);
+
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authChecking, setAuthChecking] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    async function restoreSession() {
+      const savedToken = window.localStorage.getItem(AUTH_TOKEN_KEY);
+      if (!savedToken) { if (active) setAuthChecking(false); return; }
+      try {
+        const response = await fetch(`${API_URL}/auth/me`, { headers: { Authorization: `Bearer ${savedToken}` } });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.id || !result.email) throw new Error("Session is invalid");
+        if (active) { setAccessToken(savedToken); setAuthUser(result as AuthUser); }
+      } catch {
+        window.localStorage.removeItem(AUTH_TOKEN_KEY);
+        if (active) { setAccessToken(null); setAuthUser(null); }
+      } finally { if (active) setAuthChecking(false); }
+    }
+    void restoreSession();
+    return () => { active = false; };
+  }, []);
+
+  function handleAuthenticated(token: string, user: AuthUser) {
+    window.localStorage.setItem(AUTH_TOKEN_KEY, token);
+    setAccessToken(token);
+    setAuthUser(user);
+  }
+
+  async function handleLogout() {
+    const token = accessToken;
+    try {
+      if (token) await fetch(`${API_URL}/auth/logout`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+    } catch (err) { console.warn("Logout request failed; clearing local session.", err); }
+    finally {
+      window.localStorage.removeItem(AUTH_TOKEN_KEY);
+      setAccessToken(null); setAuthUser(null); setGraph(null); setSelectedNode(null);
+      setAttackData(null); setSimulationResult(null); setLoading(true); setError("");
+    }
+  }
+
   const graphRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
 
   const [graph, setGraph] = useState<GraphResponse | null>(null);
   const [selectedNode, setSelectedNode] = useState<NodeData | null>(null);
   const [search, setSearch] = useState("");
+  const [criticalityFilter, setCriticalityFilter] = useState("All");
+  const [typeFilter, setTypeFilter] = useState("All");
+  const [environmentFilter, setEnvironmentFilter] = useState("All");
+  const [relationshipFilter, setRelationshipFilter] = useState("All");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -138,41 +216,88 @@ function App() {
   const [simulationError, setSimulationError] = useState("");
 
 
-  async function refreshGraph(showSpinner = false) {
-    try {
-      if (showSpinner) setLoading(true);
-      setError("");
+  const refreshGraph = useCallback(async (showSpinner = false) => {
+  try {
+    if (showSpinner) setLoading(true);
+    setError("");
 
-      const data = (await apiRequest("/graph")) as GraphResponse;
+    const data = (await apiRequest("/graph")) as GraphResponse;
 
-      if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) {
-        throw new Error("Invalid graph response");
-      }
-
-      setGraph(data);
-      // Discard old analysis results when the underlying graph is refreshed.
-      setAttackData(null);
-      setSelectedPathIndex(null);
-
-      setSelectedNode((previous) => {
-        if (!previous) return null;
-        return data.nodes.find((node) => node.id === previous.id) ?? null;
-      });
-    } catch (err) {
-      console.error(err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Could not load graph. Check FastAPI and Neo4j."
-      );
-    } finally {
-      setLoading(false);
+    if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) {
+      throw new Error("Invalid graph response");
     }
+
+    setGraph(data);
+
+    // Discard old analysis results when the underlying graph is refreshed.
+    setAttackData(null);
+    setSelectedPathIndex(null);
+
+    setSelectedNode((previous) => {
+      if (!previous) return null;
+      return data.nodes.find((node) => node.id === previous.id) ?? null;
+    });
+  } catch (err) {
+    console.error(err);
+
+    setError(
+      err instanceof Error
+        ? err.message
+        : "Could not load graph. Check FastAPI and Neo4j."
+    );
+  } finally {
+    setLoading(false);
   }
+}, [
+  setLoading,
+  setError,
+  setGraph,
+  setAttackData,
+  setSelectedPathIndex,
+  setSelectedNode,
+]);
 
   useEffect(() => {
-    void refreshGraph(true);
-  }, []);
+    if (!accessToken) { setLoading(false); return; }
+    let isActive = true;
+
+    const loadInitialGraph = async () => {
+      try {
+        const data = (await apiRequest("/graph")) as GraphResponse;
+
+        if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) {
+          throw new Error("Invalid graph response");
+        }
+
+        if (!isActive) return;
+
+        setGraph(data);
+        setAttackData(null);
+        setSelectedPathIndex(null);
+        setSelectedNode(null);
+        setError("");
+      } catch (err) {
+        if (!isActive) return;
+
+        console.error(err);
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Could not load graph. Check FastAPI and Neo4j."
+        );
+      } finally {
+        if (isActive) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadInitialGraph();
+
+    return () => {
+      isActive = false;
+    };
+  }, [accessToken]);
 
   // Rebuild the visualization whenever the database graph changes.
   useEffect(() => {
@@ -188,6 +313,7 @@ function App() {
           criticality: node.criticality,
           exposed: node.exposed,
           compromised: node.compromised,
+          environment: node.environment ?? "Unknown",
         },
       })),
       ...graph.edges
@@ -217,7 +343,7 @@ function App() {
         {
           selector: "node",
           style: {
-            "background-color": "#2563eb",
+            "background-color": theme === "dark" ? "#2563eb" : "#3156a6",
             label: "data(label)",
             color: "#ffffff",
             "text-valign": "center",
@@ -226,9 +352,9 @@ function App() {
             width: 48,
             height: 48,
             "border-width": 2,
-            "border-color": "#93c5fd",
+            "border-color": theme === "dark" ? "#93c5fd" : "#5476b8",
             "text-wrap": "wrap",
-            "text-max-width": 75,
+            "text-max-width": "75px",
             "overlay-opacity": 0,
           },
         },
@@ -258,16 +384,16 @@ function App() {
           selector: "edge",
           style: {
             width: 2,
-            "line-color": "#64748b",
-            "target-arrow-color": "#64748b",
+            "line-color": theme === "dark" ? "#64748b" : "#8794a8",
+            "target-arrow-color": theme === "dark" ? "#64748b" : "#8794a8",
             "target-arrow-shape": "triangle",
             "curve-style": "bezier",
             label: "data(label)",
             color: "#94a3b8",
             "font-size": 8,
-            "text-background-color": "#0f172a",
+            "text-background-color": theme === "dark" ? "#0f172a" : "#ffffff",
             "text-background-opacity": 0.85,
-            "text-background-padding": 2,
+            "text-background-padding": "2px",
           },
         },
         {
@@ -287,6 +413,10 @@ function App() {
         {
           selector: ".search-dim",
           style: { opacity: 0.2 },
+        },
+        {
+          selector: ".filter-dim",
+          style: { opacity: 0.08 },
         },
         {
           selector: ".path-highlight",
@@ -319,11 +449,14 @@ function App() {
         },
       ],
       layout: {
-        name: "breadthfirst",
-        directed: true,
-        padding: 45,
-        spacingFactor: 1.35,
+        name: "cose",
         animate: false,
+        fit: true,
+        padding: 70,
+        nodeRepulsion: () => 9000,
+        idealEdgeLength: () => 150,
+        componentSpacing: 100,
+        gravity: 0.25,
       },
     });
 
@@ -353,7 +486,7 @@ function App() {
       cy.destroy();
       cyRef.current = null;
     };
-  }, [graph]);
+  }, [graph, theme]);
 
   // Search graph assets.
   useEffect(() => {
@@ -384,6 +517,53 @@ function App() {
       cy.animate({ fit: { eles: matches, padding: 70 }, duration: 250 });
     }
   }, [search, graph]);
+
+  // Apply the selected graph filters without removing data from the graph.
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+
+    // Cytoscape collections expose forEach in the browser. Guard the call so
+    // lightweight graph mocks used by tests (which may only implement filter)
+    // do not throw during React's effect lifecycle.
+    const nodes = cy.nodes();
+    if (typeof nodes.forEach === "function") {
+      nodes.forEach((node) => {
+        const criticalityMatches = criticalityFilter === "All" ||
+          String(node.data("criticality") ?? "").toLowerCase() === criticalityFilter.toLowerCase();
+        const typeMatches = typeFilter === "All" ||
+          String(node.data("type") ?? "").toLowerCase() === typeFilter.toLowerCase();
+        const environmentMatches = environmentFilter === "All" ||
+          String(node.data("environment") ?? "Unknown").toLowerCase() === environmentFilter.toLowerCase();
+        node.toggleClass("filter-dim", !(criticalityMatches && typeMatches && environmentMatches));
+      });
+    }
+
+    const edges = cy.edges();
+    if (typeof edges.forEach === "function") {
+      edges.forEach((edge) => {
+        const relationshipMatches = relationshipFilter === "All" ||
+          String(edge.data("label") ?? "").toLowerCase() === relationshipFilter.toLowerCase();
+        edge.toggleClass("filter-dim", !relationshipMatches);
+      });
+    }
+  }, [criticalityFilter, typeFilter, environmentFilter, relationshipFilter, graph]);
+
+  const assetTypes = Array.from(new Set((graph?.nodes ?? []).map((node) => node.type).filter(Boolean))).sort();
+  const environments = Array.from(new Set((graph?.nodes ?? []).map((node) => node.environment || "Unknown"))).sort();
+  const relationships = Array.from(new Set((graph?.edges ?? []).map((edge) => edge.relationship).filter(Boolean))).sort();
+  const filteredAssetCount = (graph?.nodes ?? []).filter((node) =>
+    (criticalityFilter === "All" || node.criticality.toLowerCase() === criticalityFilter.toLowerCase()) &&
+    (typeFilter === "All" || node.type.toLowerCase() === typeFilter.toLowerCase()) &&
+    (environmentFilter === "All" || (node.environment || "Unknown").toLowerCase() === environmentFilter.toLowerCase())
+  ).length;
+
+  function zoomGraph(factor: number) {
+    const cy = cyRef.current;
+    if (!cy) return;
+    const nextZoom = Math.max(cy.minZoom(), Math.min(cy.maxZoom(), cy.zoom() * factor));
+    cy.zoom({ level: nextZoom, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } });
+  }
 
   async function analyzeAttackPaths() {
     setAnalyzing(true);
@@ -520,14 +700,22 @@ function App() {
     );
     setSelectedPathIndex(null);
     cy.layout({
-      name: "breadthfirst",
-      directed: true,
-      padding: 45,
-      spacingFactor: 1.35,
+      name: "cose",
+      animate: false,
+      fit: true,
+      padding: 70,
+      nodeRepulsion: () => 9000,
+      idealEdgeLength: () => 150,
+      componentSpacing: 100,
+      gravity: 0.25,
     }).run();
 
     cy.fit(undefined, 45);
     setSearch("");
+    setCriticalityFilter("All");
+    setTypeFilter("All");
+    setEnvironmentFilter("All");
+    setRelationshipFilter("All");
     setSelectedNode(null);
     setEditing(false);
   }
@@ -722,6 +910,9 @@ function App() {
         (edge.source === selectedNode.id || edge.target === selectedNode.id)
     ) ?? [];
 
+  if (authChecking) return <div className="nx-auth-loading">Checking your secure session...</div>;
+  if (!accessToken || !authUser) return <AuthScreen theme={theme} onToggleTheme={() => setTheme(current => current === "dark" ? "light" : "dark")} onAuthenticated={handleAuthenticated} />;
+
   return (
     <div className="app">
       <header className="header">
@@ -730,9 +921,23 @@ function App() {
           <p>Enterprise Attack Path Analysis &amp; Threat Intelligence</p>
         </div>
 
-        <div className="status">
+        <div className="header-actions">
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")}
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            aria-pressed={theme === "light"}
+          >
+            <span aria-hidden="true">{theme === "dark" ? "☀" : "☾"}</span>
+            {theme === "dark" ? "Light mode" : "Dark mode"}
+          </button>
+          <div className="nx-session-user"><strong>{authUser.full_name}</strong><span>{authUser.role}</span></div>
+          <button type="button" className="nx-logout-button" onClick={() => void handleLogout()}>Sign out</button>
+          <div className="status">
           <span className="status-dot" />
           {error ? "BACKEND UNAVAILABLE" : loading ? "CONNECTING..." : "SYSTEM ONLINE"}
+          </div>
         </div>
       </header>
 
@@ -755,6 +960,21 @@ function App() {
             <strong>{compromisedCount}</strong>
           </div>
         </section>
+
+        {/* Organization team management: visible only to authorized administrators */}
+        {(authUser.role === "ORG_ADMIN" || authUser.role === "SUPER_ADMIN") && (
+          <TeamManagement />
+        )}
+
+        {/* Live PostgreSQL-backed network topology */}
+        <NetworkTopology theme={theme} />
+
+        {/* PostgreSQL-backed vulnerability intelligence */}
+        <VulnerabilityIntelligence />
+
+        <IncidentManagement />
+        <SecurityEventMonitoring />
+        <SecurityIntelligence />
 
         {error && <div className="error">{error}</div>}
         {loading && <div className="loading">Loading enterprise graph...</div>}
@@ -1409,6 +1629,36 @@ function App() {
               />
               <button type="button" onClick={resetGraph}>Reset graph</button>
               <button type="button" onClick={() => void refreshGraph(true)}>Refresh</button>
+              <button type="button" onClick={() => zoomGraph(1.2)} aria-label="Zoom in">＋</button>
+              <button type="button" onClick={() => zoomGraph(0.8)} aria-label="Zoom out">−</button>
+              <button type="button" onClick={() => cyRef.current?.fit(undefined, 55)}>Fit</button>
+            </div>
+
+            <div className="graph-filters" aria-label="Graph filters">
+              <label>Criticality
+                <select value={criticalityFilter} onChange={(event) => setCriticalityFilter(event.target.value)}>
+                  {['All', 'Critical', 'High', 'Medium', 'Low'].map((value) => <option key={value}>{value}</option>)}
+                </select>
+              </label>
+              <label>Asset type
+                <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
+                  <option value="All">All types</option>
+                  {assetTypes.map((value) => <option key={value}>{value}</option>)}
+                </select>
+              </label>
+              <label>Environment
+                <select value={environmentFilter} onChange={(event) => setEnvironmentFilter(event.target.value)}>
+                  <option value="All">All environments</option>
+                  {environments.map((value) => <option key={value}>{value}</option>)}
+                </select>
+              </label>
+              <label>Relationship
+                <select value={relationshipFilter} onChange={(event) => setRelationshipFilter(event.target.value)}>
+                  <option value="All">All relationships</option>
+                  {relationships.map((value) => <option key={value}>{value}</option>)}
+                </select>
+              </label>
+              <span className="filter-count">Showing {filteredAssetCount} of {graph?.nodes.length ?? 0} assets</span>
             </div>
 
             <div ref={graphRef} className="graph-container" />
@@ -1492,22 +1742,54 @@ function App() {
               </form>
             ) : (
               <>
-                <div className="details">
-                  <div className="asset-name">{selectedNode.name}</div>
+                <div className="asset-intelligence">
+                  <div className="asset-intelligence-heading">
+                    <div className="asset-name">{selectedNode.name}</div>
+                    <span className={`asset-criticality-badge ${String(selectedNode.criticality).toLowerCase()}`}>
+                      {selectedNode.criticality || "Unknown"} criticality
+                    </span>
+                  </div>
 
-                  {[
-                    ["ID", selectedNode.id],
-                    ["Type", selectedNode.type],
-                    ["IP Address", selectedNode.ip],
-                    ["Criticality", selectedNode.criticality],
-                    ["Exposed", selectedNode.exposed],
-                    ["Compromised", selectedNode.compromised],
-                  ].map(([label, value]) => (
-                    <div className="detail-row" key={label}>
-                      <span>{label}</span>
-                      <strong>{value}</strong>
+                  <div className="asset-security-flags">
+                    <span className={String(selectedNode.exposed).toLowerCase() === "yes" ? "flag warning" : "flag safe"}>
+                      {String(selectedNode.exposed).toLowerCase() === "yes" ? "Exposed" : "Not marked exposed"}
+                    </span>
+                    <span className={String(selectedNode.compromised).toLowerCase() === "yes" ? "flag danger" : "flag safe"}>
+                      {String(selectedNode.compromised).toLowerCase() === "yes" ? "Compromised" : "Not marked compromised"}
+                    </span>
+                  </div>
+
+                  <div className="asset-detail-grid">
+                    {[
+                      ["Asset ID", selectedNode.id],
+                      ["Asset type", selectedNode.type],
+                      ["IP / Identifier", selectedNode.ip || "Not provided"],
+                      ["Environment", selectedNode.environment || "Not supplied by graph API"],
+                    ].map(([label, value]) => (
+                      <div className="asset-detail-card" key={label}>
+                        <span>{label}</span>
+                        <strong>{value}</strong>
+                      </div>
+                    ))}
+                  </div>
+
+                  <section className="asset-intel-section">
+                    <div className="asset-intel-section-heading">
+                      <h3>Network activity</h3>
+                      <span>{selectedConnections.length} recorded</span>
                     </div>
-                  ))}
+                    <div className="asset-connection-stats">
+                      <div><strong>{selectedConnections.filter((edge) => edge.target === selectedNode.id).length}</strong><span>Incoming</span></div>
+                      <div><strong>{selectedConnections.filter((edge) => edge.source === selectedNode.id).length}</strong><span>Outgoing</span></div>
+                      <div><strong>{selectedConnections.length}</strong><span>Total</span></div>
+                    </div>
+                  </section>
+
+                  <AssetVulnerabilityPanel
+                    graphAssetId={selectedNode.id}
+                    assetName={selectedNode.name}
+                    criticality={selectedNode.criticality}
+                  />
                 </div>
 
                 <div className="asset-actions">

@@ -1,10 +1,15 @@
-
+from backend.network_routes import router as network_router
 from contextlib import asynccontextmanager
 import csv
 import os
 import re
 from pathlib import Path
+from backend.vulnerability_routes import router as vulnerability_router
+from backend.auth_routes import router as auth_router
+from backend.incident_routes import router as incident_router
 
+from backend.intelligence_routes import router as intelligence_router
+from backend.security_event_routes import router as security_event_router
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -95,6 +100,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="NexaGraph AI", lifespan=lifespan)
 
+app.include_router(network_router)
+app.include_router(vulnerability_router)
+app.include_router(incident_router)
+app.include_router(security_event_router)
+app.include_router(intelligence_router)
+app.include_router(auth_router)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
@@ -122,11 +134,80 @@ class ConnectionInput(BaseModel):
 
 
 def graph_data():
+    """
+    Retrieve the organization-aware network graph from Neo4j.
+
+    Only synchronized assets and valid, active network
+    relationships are included in attack-path analysis.
+    """
+
     if driver is None:
         ensure_fallback_graph()
+
         return {
-            "nodes": [dict(node) for node in GRAPH_STATE["nodes"]],
-            "edges": [dict(edge) for edge in GRAPH_STATE["edges"]],
+            "nodes": [
+                dict(node)
+                for node in GRAPH_STATE["nodes"]
+            ],
+            "edges": [
+                dict(edge)
+                for edge in GRAPH_STATE["edges"]
+            ],
+        }
+
+    with driver.session() as session:
+
+        # Retrieve only organization-aware synchronized assets.
+        nodes_result = session.run("""
+            MATCH (a:Asset)
+            WHERE a.graph_key IS NOT NULL
+              AND a.organization_id IS NOT NULL
+
+            RETURN collect({
+                id: a.graph_key,
+                graph_key: a.graph_key,
+                organization_id: a.organization_id,
+                postgres_asset_id: a.postgres_asset_id,
+                graph_asset_id: a.graph_asset_id,
+                name: a.name,
+                type: a.type,
+                ip: a.ip,
+                criticality: a.criticality,
+                exposed: coalesce(a.exposed, 'No'),
+                compromised: coalesce(a.compromised, 'No'),
+                environment: a.environment,
+                operating_system: a.operating_system
+            }) AS nodes
+        """).single()
+
+        # Only active network-access relationships are traversable.
+        edges_result = session.run("""
+            MATCH (a:Asset)-[r]->(b:Asset)
+
+            WHERE a.graph_key IS NOT NULL
+              AND b.graph_key IS NOT NULL
+              AND a.organization_id IS NOT NULL
+              AND a.organization_id = b.organization_id
+              AND type(r) IN [
+                  'CONNECTS_TO',
+                  'ALLOWS_TRAFFIC'
+              ]
+              AND coalesce(r.status, 'ACTIVE') = 'ACTIVE'
+
+            RETURN collect({
+                source: a.graph_key,
+                target: b.graph_key,
+                organization_id: a.organization_id,
+                relationship: type(r),
+                protocol: r.protocol,
+                port: r.port,
+                direction: r.direction
+            }) AS edges
+        """).single()
+
+        return {
+            "nodes": nodes_result["nodes"] if nodes_result else [],
+            "edges": edges_result["edges"] if edges_result else [],
         }
 
     with driver.session() as session:
@@ -163,8 +244,8 @@ def graph_data():
 def home():
     return {"message": "NexaGraph AI Backend Running"}
 
-
 @app.get("/health")
+@app.get("/api/health")
 def health():
     if driver is None:
         ensure_fallback_graph()
@@ -516,6 +597,17 @@ SCORING_NOTE = (
     "and path structure. Not a probability of a real attack."
 )
 
+# Only relationships that represent a potential network route are traversed
+# by attack-path analysis. Contextual relationships are not network connectivity.
+ATTACK_PATH_RELATIONSHIPS = {
+    # Current Neo4j relationship types
+    "CONNECTS_TO",
+    "ALLOWS_TRAFFIC",
+
+    # Backward compatibility with existing graph snapshots and tests
+    "CONNECTS",
+}
+
 
 
 def build_remediation_recommendations(paths, nodes, limit=3):
@@ -616,23 +708,52 @@ def build_remediation_recommendations(paths, nodes, limit=3):
 
 
 def analyze_graph_snapshot(nodes, edges, max_depth=MAX_PATH_DEPTH, max_paths=MAX_PATHS):
-    """Analyze directed paths on an in-memory graph snapshot without database writes."""
-    node_map = {node["id"]: node for node in nodes}
-    adjacency = {node["id"]: [] for node in nodes}
+    """Analyze directed network paths on an in-memory graph snapshot without database writes."""
+    node_map = {
+        node["id"]: node
+        for node in nodes
+        if isinstance(node, dict) and node.get("id") is not None
+    }
+    adjacency = {node_id: [] for node_id in node_map}
+
+    # Bound traversal even if callers supply invalid or unexpectedly large limits.
+    try:
+        max_depth = max(2, min(int(max_depth), 20))
+    except (TypeError, ValueError):
+        max_depth = MAX_PATH_DEPTH
+
+    try:
+        max_paths = max(1, min(int(max_paths), 1000))
+    except (TypeError, ValueError):
+        max_paths = MAX_PATHS
 
     for edge in edges:
+        if not isinstance(edge, dict):
+            continue
+
         source = edge.get("source")
         target = edge.get("target")
-        if source in adjacency and target in node_map:
-            adjacency[source].append(edge)
+        relationship = str(edge.get("relationship") or "").strip().upper()
+
+        # Do not treat vulnerability, event, ownership, or assignment links
+        # as traversable network routes.
+        if (
+            source in adjacency
+            and target in node_map
+            and relationship in ATTACK_PATH_RELATIONSHIPS
+        ):
+            normalized_edge = dict(edge)
+            normalized_edge["relationship"] = relationship
+            adjacency[source].append(normalized_edge)
 
     sources = [
-        node for node in nodes
-        if node.get("exposed") == "Yes" or node.get("compromised") == "Yes"
+        node for node in node_map.values()
+        if str(node.get("exposed", "No")).strip().lower() == "yes"
+        or str(node.get("compromised", "No")).strip().lower() == "yes"
     ]
     targets = {
-        node["id"] for node in nodes
-        if str(node.get("criticality", "")).lower() == "critical"
+        node["id"] for node in node_map.values()
+        if str(node.get("criticality", "")).strip().lower() == "critical"
     }
 
     paths = []
@@ -640,22 +761,23 @@ def analyze_graph_snapshot(nodes, edges, max_depth=MAX_PATH_DEPTH, max_paths=MAX
 
     def calculate_score(path_nodes):
         score = 0
-        if path_nodes[0].get("exposed") == "Yes":
+        if str(path_nodes[0].get("exposed", "No")).strip().lower() == "yes":
             score += 30
-        if path_nodes[0].get("compromised") == "Yes":
+        if str(path_nodes[0].get("compromised", "No")).strip().lower() == "yes":
             score += 40
 
-        # Preserve the scoring formula used by the original /attack-paths route.
+        # Preserve the existing prototype scoring formula.
         score += 30
         for node in path_nodes[1:-1]:
-            level = str(node.get("criticality", "")).lower()
+            level = str(node.get("criticality", "")).strip().lower()
             score += {"low": 2, "medium": 5, "high": 10, "critical": 15}.get(level, 0)
-            if node.get("compromised") == "Yes":
+            if str(node.get("compromised", "No")).strip().lower() == "yes":
                 score += 10
         return min(score, 100)
 
     def explore(current_id, path_ids, path_edges):
         nonlocal limit_reached
+
         if len(paths) >= max_paths:
             limit_reached = True
             return
@@ -679,10 +801,12 @@ def analyze_graph_snapshot(nodes, edges, max_depth=MAX_PATH_DEPTH, max_paths=MAX
             return
 
         for edge in adjacency.get(current_id, []):
-            next_id = edge["target"]
-            if next_id in path_ids:
+            next_id = edge.get("target")
+            if next_id is None or next_id in path_ids:
                 continue
+
             explore(next_id, path_ids + [next_id], path_edges + [edge])
+
             if len(paths) >= max_paths:
                 limit_reached = True
                 return
@@ -699,6 +823,7 @@ def analyze_graph_snapshot(nodes, edges, max_depth=MAX_PATH_DEPTH, max_paths=MAX
         "total_paths": len(paths),
         "max_paths_reached": limit_reached,
         "scoring_note": SCORING_NOTE,
+        "traversable_relationships": sorted(ATTACK_PATH_RELATIONSHIPS),
     }
 
 

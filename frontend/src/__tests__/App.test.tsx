@@ -4,6 +4,20 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App";
 
+// Keep dashboard tests focused on App's graph and attack-path behavior.
+// NetworkTopology has its own API integration and should be tested separately.
+vi.mock("../NetworkTopology", () => ({
+  default: () => null,
+}));
+
+vi.mock("../AssetVulnerabilityPanel", () => ({
+  default: () => null,
+}));
+
+type MockCyNode = {
+  data: (key: string) => string | undefined;
+};
+
 const mockCy = {
   on: vi.fn(),
   destroy: vi.fn(),
@@ -13,7 +27,7 @@ const mockCy = {
   addClass: vi.fn().mockReturnThis(),
 })),
   nodes: vi.fn(() => ({
-  filter: vi.fn((callback: (node: any) => boolean) => {
+  filter: vi.fn((callback: (node: MockCyNode) => boolean) => {
     const assets = [
       {
         id: "A01",
@@ -34,12 +48,7 @@ const mockCy = {
     data: (key: string) => asset[key as keyof typeof asset],
   };
 
-  const result = callback(node);
-
-  console.log("Asset data:", asset);
-  console.log("Search match:", result);
-
-  return result;
+  return callback(node);
 });
 
     return {
@@ -141,7 +150,7 @@ it("displays an error when the backend is unavailable", async () => {
   expect(await screen.findByText("BACKEND UNAVAILABLE")).toBeInTheDocument();
 
   expect(
-    screen.getByText("Network error")
+    screen.getByText("Network error", { selector: ".error" })
   ).toBeInTheDocument();
 });
 
@@ -487,7 +496,6 @@ it("runs a connection removal simulation and displays the results", async () => 
 
 
 it("prevents asset isolation when no asset is selected", async () => {
-  const user = userEvent.setup();
 
   const fetchMock = vi.fn().mockResolvedValue({
     ok: true,
@@ -2818,9 +2826,21 @@ it("handles an empty graph response", async () => {
 
 
 it("displays the correct dashboard statistics", async () => {
-  vi.mocked(fetch).mockResolvedValueOnce({
-    ok: true,
-    json: async () => ({
+  // Route the mock by endpoint so the additional Vulnerability Intelligence
+  // requests cannot consume the dashboard's one-time /graph response.
+  vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL) => {
+    const url = String(input);
+
+    if (!url.endsWith("/graph")) {
+      return {
+        ok: true,
+        json: async () => (url.endsWith("/summary") ? {} : []),
+      } as Response;
+    }
+
+    return {
+      ok: true,
+      json: async () => ({
       nodes: [
         {
           id: "A01",
@@ -2864,8 +2884,9 @@ it("displays the correct dashboard statistics", async () => {
           protocol: "HTTPS",
         },
       ],
-    }),
-  } as Response);
+      }),
+    } as Response;
+  });
 
   render(<App />);
 
@@ -2950,7 +2971,6 @@ it("clears graph search and resets search highlighting", async () => {
 });
 
 it("does not animate the graph when no assets match the search", async () => {
-  const user = userEvent.setup();
 
   render(<App />);
 

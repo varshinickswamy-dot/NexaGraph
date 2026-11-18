@@ -1,0 +1,425 @@
+.incident-module {
+  margin: 28px 0;
+  padding: 24px;
+  border: 1px solid var(--nx-border, #26364e);
+  border-radius: 16px;
+  background: var(--nx-card, #111c32);
+  color: var(--nx-text, #f5f2ea);
+}
+
+.incident-heading,
+.incident-list-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.incident-heading h2 {
+  margin: 6px 0;
+  font-size: 25px;
+}
+
+.incident-heading p,
+.incident-eyebrow,
+.incident-id {
+  color: var(--nx-muted, #aab5c8);
+}
+
+.incident-eyebrow {
+  font-size: 11px;
+  letter-spacing: 1.5px;
+}
+
+.incident-org,
+.incident-filters,
+.incident-assignment {
+  display: flex;
+  gap: 10px;
+  margin: 18px 0;
+  flex-wrap: wrap;
+}
+
+.incident-org label {
+  align-self: center;
+  font-size: 13px;
+}
+
+.incident-org input {
+  flex: 1;
+  min-width: 240px;
+}
+
+.incident-module input,
+.incident-module select,
+.incident-module textarea {
+  min-height: 40px;
+  padding: 10px;
+  border: 1px solid var(--nx-border, #35445c);
+  border-radius: 8px;
+  background: var(--nx-input, #192641);
+  color: inherit;
+  font: inherit;
+}
+
+.incident-module textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.incident-module button {
+  padding: 9px 15px;
+  border: 1px solid var(--nx-border, #35445c);
+  border-radius: 8px;
+  cursor: pointer;
+  background: var(--nx-input, #192641);
+  color: inherit;
+}
+
+.incident-module button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.incident-primary {
+  background: #b8954a !important;
+  color: #111827 !important;
+  border-color: #b8954a !important;
+  font-weight: 700;
+}
+
+.incident-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+  margin: 22px 0;
+}
+
+.incident-metric {
+  padding: 18px;
+  border: 1px solid var(--nx-border, #35445c);
+  border-radius: 12px;
+  background: var(--nx-surface, #192641);
+}
+
+.incident-metric span,
+.incident-metric strong {
+  display: block;
+}
+
+.incident-metric span {
+  color: var(--nx-muted, #aab5c8);
+  font-size: 12px;
+}
+
+.incident-metric strong {
+  margin-top: 10px;
+  font-size: 27px;
+}
+
+.incident-metric.critical strong {
+  color: #ef6470;
+}
+
+.incident-metric.high strong {
+  color: #f49a53;
+}
+
+.incident-metric.open strong {
+  color: #e8bd63;
+}
+
+.incident-metric.resolved strong {
+  color: #43c49a;
+}
+
+.incident-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(300px, 1fr);
+  gap: 18px;
+}
+
+.incident-list-panel,
+.incident-detail-panel,
+.incident-create-form {
+  padding: 18px;
+  border: 1px solid var(--nx-border, #35445c);
+  border-radius: 12px;
+  background: var(--nx-surface, #192641);
+  min-width: 0;
+}
+
+.incident-create-form {
+  margin: 20px 0;
+  display: grid;
+  gap: 14px;
+}
+
+.incident-create-form label,
+.incident-edit-fields label {
+  display: grid;
+  gap: 7px;
+  font-size: 13px;
+}
+
+.incident-create-form textarea,
+.incident-note-form textarea {
+  width: 100%;
+}
+
+.incident-filters input {
+  flex: 1;
+  min-width: 150px;
+}
+
+.incident-table-wrap {
+  overflow-x: auto;
+}
+
+.incident-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.incident-table th,
+.incident-table td {
+  padding: 13px 10px;
+  border-bottom: 1px solid var(--nx-border, #35445c);
+  font-size: 12px;
+}
+
+.incident-table tbody tr {
+  cursor: pointer;
+}
+
+.incident-table tbody tr:hover,
+.incident-table tbody tr.selected {
+  background: rgba(184, 149, 74, 0.12);
+}
+
+.incident-table td strong,
+.incident-table td small {
+  display: block;
+}
+
+.incident-table td small {
+  margin-top: 5px;
+  color: var(--nx-muted, #aab5c8);
+}
+
+.incident-badge {
+  display: inline-block;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.incident-badge.critical {
+  color: #ff7c86;
+  background: rgba(224, 82, 96, 0.15);
+}
+
+.incident-badge.high {
+  color: #ffb36f;
+  background: rgba(244, 154, 83, 0.15);
+}
+
+.incident-badge.medium {
+  color: #e8bd63;
+  background: rgba(232, 189, 99, 0.15);
+}
+
+.incident-badge.low {
+  color: #55cda1;
+  background: rgba(67, 196, 154, 0.15);
+}
+
+.incident-edit-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.incident-detail-panel h4 {
+  margin: 22px 0 10px;
+}
+
+.incident-assignment input {
+  flex: 1;
+  min-width: 150px;
+}
+
+.incident-person,
+.incident-notes article {
+  padding: 12px;
+  margin: 8px 0;
+  border: 1px solid var(--nx-border, #35445c);
+  border-radius: 8px;
+}
+
+.incident-person {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.incident-person strong,
+.incident-person small {
+  display: block;
+}
+
+.incident-person small,
+.incident-notes small {
+  color: var(--nx-muted, #aab5c8);
+}
+
+.incident-note-form {
+  display: grid;
+  gap: 10px;
+}
+
+.incident-notes {
+  margin-top: 15px;
+}
+
+.incident-notes article p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.incident-alert {
+  padding: 12px;
+  margin: 12px 0;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.incident-error {
+  background: rgba(224, 82, 96, 0.15);
+  color: #ff8992;
+}
+
+.incident-success {
+  background: rgba(54, 185, 138, 0.15);
+  color: #55cda1;
+}
+
+.incident-empty {
+  padding: 25px 12px;
+  text-align: center;
+  color: var(--nx-muted, #aab5c8);
+}
+
+.incident-actions {
+  display: flex;
+  gap: 10px;
+}
+
+@media (max-width: 1000px) {
+  .incident-content {
+    grid-template-columns: 1fr;
+  }
+
+  .incident-metrics {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .incident-module {
+    padding: 14px;
+  }
+
+  .incident-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .incident-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .incident-edit-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .incident-org {
+    flex-direction: column;
+  }
+}
+/* =========================================
+   NEXAGRAPH AI — INCIDENT LIGHT MODE
+   ========================================= */
+
+:root[data-theme="light"] .incident-module {
+  background: #FAF9F6;
+  color: #202A3A;
+  border-color: #E2E5EB;
+}
+
+:root[data-theme="light"] .incident-metric,
+:root[data-theme="light"] .incident-list-panel,
+:root[data-theme="light"] .incident-detail-panel,
+:root[data-theme="light"] .incident-create-form {
+  background: #FFFFFF;
+  color: #202A3A;
+  border-color: #E2E5EB;
+}
+
+:root[data-theme="light"] .incident-module input,
+:root[data-theme="light"] .incident-module select,
+:root[data-theme="light"] .incident-module textarea {
+  background: #FFFFFF;
+  color: #202A3A;
+  border-color: #D5DAE2;
+}
+
+:root[data-theme="light"] .incident-module input::placeholder,
+:root[data-theme="light"] .incident-module textarea::placeholder {
+  color: #8791A0;
+}
+
+:root[data-theme="light"] .incident-module button:not(.incident-primary) {
+  background: #F1F3F7;
+  color: #202A3A;
+  border-color: #D5DAE2;
+}
+
+:root[data-theme="light"] .incident-table th,
+:root[data-theme="light"] .incident-table td {
+  color: #263449;
+  border-color: #E5E7EB;
+}
+
+:root[data-theme="light"] .incident-table tbody tr:hover,
+:root[data-theme="light"] .incident-table tbody tr.selected {
+  background: #F5F0E5;
+}
+
+:root[data-theme="light"] .incident-eyebrow,
+:root[data-theme="light"] .incident-id,
+:root[data-theme="light"] .incident-person small,
+:root[data-theme="light"] .incident-notes small,
+:root[data-theme="light"] .incident-empty,
+:root[data-theme="light"] .incident-metric span {
+  color: #687386;
+}
+
+:root[data-theme="light"] .incident-person,
+:root[data-theme="light"] .incident-notes article {
+  background: #FAFAFC;
+  border-color: #E2E5EB;
+}
+
+:root[data-theme="light"] .incident-module h2,
+:root[data-theme="light"] .incident-module h3,
+:root[data-theme="light"] .incident-module h4,
+:root[data-theme="light"] .incident-person strong {
+  color: #172B4D;
+}

@@ -19,3 +19,5 @@ htmlcov/
 .env
 .env.*
 !.env.example
+# Runtime logs
+backend/logs/

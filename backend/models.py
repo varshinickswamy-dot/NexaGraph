@@ -19,6 +19,8 @@ AssetMetadata = Base.classes.assets_metadata
 Vulnerability = Base.classes.vulnerabilities
 AssetVulnerability = Base.classes.asset_vulnerabilities
 
+AssetNetworkRelationship = Base.classes.asset_network_relationships
+
 SecurityEvent = Base.classes.security_events
 Incident = Base.classes.incidents
 IncidentAssignment = Base.classes.incident_assignments

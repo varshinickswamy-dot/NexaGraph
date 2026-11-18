@@ -1,16 +1,100 @@
-* {
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
+/* =====================================================
+   NEXAGRAPH AI — ROYAL DESIGN SYSTEM
+   ===================================================== */
+
+:root {
+  color-scheme: dark;
+
+  --page-bg: #080e1c;
+  --surface: #111c32;
+  --surface-raised: #192641;
+  --surface-inset: #0c1527;
+
+  --border: #293953;
+  --border-strong: #40516d;
+
+  --text: #f5f2ea;
+  --muted: #aab5c8;
+  --subtle: #8290a6;
+
+  --accent: #d4af62;
+  --accent-strong: #b8954a;
+  --accent-soft: rgba(212, 175, 98, 0.14);
+
+  --success: #23875d;
+  --success-bg: rgba(54, 185, 138, 0.14);
+
+  --danger: #e05260;
+  --danger-bg: rgba(224, 82, 96, 0.12);
+
+  --warning: #d18b36;
+  --warning-bg: rgba(209, 139, 54, 0.14);
+
+  --focus: #d4af62;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+/* LIGHT MODE */
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --page-bg: #f4f2ec;
+  --surface: #ffffff;
+  --surface-raised: #f8f6f0;
+  --surface-inset: #f0eee8;
+
+  --border: #ded8ca;
+  --border-strong: #c8bfad;
+
+  --text: #202a3a;
+  --muted: #536176;
+  --subtle: #69768a;
+
+  --accent: #a77d2f;
+  --accent-strong: #876322;
+  --accent-soft: rgba(167, 125, 47, 0.12);
+
+  --success: #176b43;
+  --success-bg: #e4f5eb;
+
+  --danger: #b83242;
+  --danger-bg: #fce8e8;
+
+  --warning: #96500e;
+  --warning-bg: #fff0df;
+
+  --focus: #96712e;
+  --shadow: 0 8px 24px rgba(31, 41, 55, 0.07);
+}
+
+/* GLOBAL RESET */
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
 html,
 body,
 #root {
-  margin: 0;
-  min-height: 100%;
   width: 100%;
+  min-height: 100%;
+  margin: 0;
+}
+
+html {
+  min-width: 320px;
+  background: var(--page-bg);
 }
 
 body {
+  min-width: 320px;
+  min-height: 100vh;
+
   font-family:
     Inter,
     system-ui,
@@ -18,5 +102,45 @@ body {
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
-  background: #0b1120;
+
+  color: var(--text);
+  background: var(--page-bg);
+
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+
+  transition:
+    background-color 0.22s ease,
+    color 0.22s ease;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+img,
+svg,
+canvas {
+  max-width: 100%;
+}
+
+::selection {
+  color: #ffffff;
+  background: rgba(184, 149, 74, 0.35);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }

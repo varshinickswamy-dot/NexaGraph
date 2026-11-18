@@ -1,77 +1,170 @@
-import os
+"""
+NexaGraph AI
+Organization-Aware Asset Synchronization
 
-from dotenv import load_dotenv
-from neo4j import GraphDatabase
+PostgreSQL = Source of Truth
+Neo4j = Graph Representation
+"""
+
 from sqlalchemy import text
 
 from backend.database import engine
-
-load_dotenv()
-
-NEO4J_URI = os.getenv("NEO4J_URI")
-NEO4J_USER = os.getenv("NEO4J_USER")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
+from backend.graph_identity import make_graph_asset_key
+from backend.neo4j_connection import get_neo4j_driver
 
 
-def fetch_postgres_assets():
-    query = text("""
-        SELECT
-            graph_asset_id,
-            asset_name,
-            asset_type,
-            ip_address,
-            criticality
-        FROM assets_metadata
-        ORDER BY graph_asset_id
-    """)
+FETCH_ASSETS_QUERY = text("""
+    SELECT
+        id AS postgres_asset_id,
+        organization_id,
+        graph_asset_id,
+        asset_name,
+        asset_type,
+        ip_address::text AS ip_address,
+        operating_system,
+        environment,
+        criticality
+    FROM assets_metadata
+    WHERE (
+        CAST(:organization_id AS UUID) IS NULL
+        OR organization_id = CAST(:organization_id AS UUID)
+    )
+    ORDER BY organization_id, graph_asset_id
+""")
+
+
+def fetch_postgres_assets(organization_id=None):
+    """Fetch all assets or assets belonging to one organization."""
 
     with engine.connect() as connection:
-        return [dict(row._mapping) for row in connection.execute(query)]
+        result = connection.execute(
+            FETCH_ASSETS_QUERY,
+            {"organization_id": organization_id}
+        )
+
+        return [
+            dict(row._mapping)
+            for row in result
+        ]
 
 
-def synchronize_assets():
-    if not all([NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD]):
-        raise RuntimeError("Neo4j configuration is incomplete.")
+def prepare_asset_records(assets):
+    """Prepare organization-aware Neo4j asset records."""
 
-    assets = fetch_postgres_assets()
+    prepared = []
+
+    for asset in assets:
+
+        organization_id = str(asset["organization_id"])
+        graph_asset_id = str(asset["graph_asset_id"])
+
+        graph_key = make_graph_asset_key(
+            organization_id,
+            graph_asset_id
+        )
+
+        criticality = (
+            str(asset["criticality"]).upper()
+            if asset["criticality"]
+            else "MEDIUM"
+        )
+
+        prepared.append({
+            "graph_key": graph_key,
+            "id": graph_key,
+            "postgres_asset_id": str(
+                asset["postgres_asset_id"]
+            ),
+            "organization_id": organization_id,
+            "graph_asset_id": graph_asset_id,
+            "name": asset["asset_name"],
+            "type": asset["asset_type"],
+            "ip": asset["ip_address"] or "",
+            "operating_system": asset["operating_system"],
+            "environment": asset["environment"],
+            "criticality": criticality,
+        })
+
+    return prepared
+
+
+def synchronize_assets(organization_id=None):
+    """
+    Synchronize PostgreSQL assets into Neo4j.
+
+    organization_id=None:
+        Synchronize all organizations.
+
+    organization_id=<UUID>:
+        Synchronize only the specified organization.
+    """
+
+    assets = fetch_postgres_assets(organization_id)
 
     if not assets:
-        print("No PostgreSQL assets found.")
-        return
+        return {
+            "status": "success",
+            "total_postgres_assets": 0,
+            "synchronized": 0,
+            "failed": 0,
+            "organization_id": organization_id,
+            "message": "No assets available."
+        }
 
-    driver = GraphDatabase.driver(
-        NEO4J_URI,
-        auth=(NEO4J_USER, NEO4J_PASSWORD)
-    )
+    records = prepare_asset_records(assets)
 
-    try:
-        driver.verify_connectivity()
+    driver = get_neo4j_driver()
 
-        with driver.session() as session:
-            for asset in assets:
-                session.run("""
-                    MERGE (a:Asset {id: $id})
-                    SET
-                        a.name = $name,
-                        a.type = $type,
-                        a.ip = $ip,
-                        a.criticality = $criticality,
-                        a.exposed = coalesce(a.exposed, 'No'),
-                        a.compromised = coalesce(a.compromised, 'No')
-                """,
-                    id=asset["graph_asset_id"],
-                    name=asset["asset_name"],
-                    type=asset["asset_type"],
-                    ip=str(asset["ip_address"]) if asset["ip_address"] else "",
-                    criticality=asset["criticality"].title()
-                    if asset["criticality"] else "Medium"
-                )
+    query = """
+        UNWIND $assets AS asset
 
-        print(f"Successfully synchronized {len(assets)} assets.")
+        MERGE (a:Asset {graph_key: asset.graph_key})
 
-    finally:
-        driver.close()
+        SET
+            a.id = asset.id,
+            a.postgres_asset_id = asset.postgres_asset_id,
+            a.organization_id = asset.organization_id,
+            a.graph_asset_id = asset.graph_asset_id,
+            a.name = asset.name,
+            a.type = asset.type,
+            a.ip = asset.ip,
+            a.operating_system = asset.operating_system,
+            a.environment = asset.environment,
+            a.criticality = asset.criticality,
+            a.exposed = coalesce(a.exposed, 'No'),
+            a.compromised = coalesce(a.compromised, 'No'),
+            a.last_synchronized = datetime()
+
+        RETURN count(a) AS synchronized
+    """
+
+    with driver.session() as session:
+
+        result = session.run(
+            query,
+            assets=records
+        ).single()
+
+        synchronized = (
+            result["synchronized"]
+            if result else 0
+        )
+
+    return {
+        "status": (
+            "success"
+            if synchronized == len(records)
+            else "partial_success"
+        ),
+        "organization_id": organization_id,
+        "total_postgres_assets": len(assets),
+        "synchronized": synchronized,
+        "failed": len(records) - synchronized
+    }
 
 
 if __name__ == "__main__":
-    synchronize_assets()
+
+    result = synchronize_assets()
+
+    print(result)

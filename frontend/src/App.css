@@ -1054,3 +1054,1312 @@ edge.path-highlight {
   border-left-color: #22c55e;
 }
 
+
+/* =========================================================
+   NEXAGRAPH AI — ENTERPRISE UI POLISH
+   Additive overrides: preserves existing dashboard behavior.
+   ========================================================= */
+
+:root {
+  color-scheme: dark;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --nx-bg: #0b1120;
+  --nx-surface: #111b2e;
+  --nx-surface-raised: #162238;
+  --nx-surface-soft: #0f1a2d;
+  --nx-border: #26364d;
+  --nx-border-strong: #354a66;
+  --nx-text: #e8eef8;
+  --nx-muted: #91a2bb;
+  --nx-blue: #4f8cff;
+  --nx-cyan: #22d3ee;
+  --nx-green: #34d399;
+  --nx-shadow: 0 14px 34px rgba(0, 0, 0, .20);
+}
+
+html {
+  background: var(--nx-bg);
+  scroll-behavior: smooth;
+}
+
+body {
+  color: var(--nx-text);
+  background:
+    radial-gradient(ellipse at 12% 0%, rgba(37, 99, 235, .09), transparent 34rem),
+    var(--nx-bg);
+  line-height: 1.5;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  transition: background .18s ease, border-color .18s ease,
+    color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--nx-cyan);
+  outline-offset: 2px;
+}
+
+.app {
+  background: transparent;
+  color: var(--nx-text);
+}
+
+.main {
+  width: min(100%, 1680px);
+  margin: 0 auto;
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  min-height: 76px;
+  background: rgba(12, 21, 37, .92);
+  border-bottom-color: rgba(71, 91, 119, .38);
+  backdrop-filter: blur(16px);
+}
+
+.stat-card,
+.graph-panel,
+.details-panel,
+.management-panel,
+.attack-panel,
+.full-simulation-results,
+.topology-panel {
+  background: linear-gradient(145deg, rgba(20, 32, 52, .98), rgba(14, 24, 41, .98));
+  border: 1px solid var(--nx-border);
+  border-radius: 14px;
+  box-shadow: var(--nx-shadow);
+}
+
+.stat-card {
+  position: relative;
+  overflow: hidden;
+  transition: transform .18s ease, border-color .18s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--nx-border-strong);
+}
+
+.stat-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--nx-blue), var(--nx-cyan));
+  opacity: .8;
+}
+
+.panel-header,
+.topology-header {
+  gap: 18px;
+}
+
+.panel-header h2,
+.management-panel h2,
+.attack-panel h2,
+.topology-header h2 {
+  letter-spacing: -.02em;
+}
+
+.graph-container,
+.topology-graph {
+  background-color: #0a1425;
+  background-image:
+    linear-gradient(rgba(89, 119, 158, .055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(89, 119, 158, .055) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* Shared controls: prevents native browser buttons and fields
+   from appearing inside dashboard panels. */
+.app button,
+.topology-panel button {
+  min-height: 38px;
+  padding: 9px 14px;
+  color: #eaf2ff;
+  background: #1b2b43;
+  border: 1px solid #3a506d;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.app button:hover:not(:disabled),
+.topology-panel button:hover:not(:disabled) {
+  background: #263d5c;
+  border-color: #5c7da8;
+  transform: translateY(-1px);
+}
+
+.app button:disabled,
+.topology-panel button:disabled {
+  opacity: .48;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.app input,
+.app select,
+.app textarea,
+.topology-panel input,
+.topology-panel select {
+  min-height: 40px;
+  padding: 9px 12px;
+  color: var(--nx-text);
+  background: #0b1729;
+  border: 1px solid #354a66;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.app input::placeholder,
+.topology-panel input::placeholder {
+  color: #71839d;
+}
+
+.app input:focus,
+.app select:focus,
+.app textarea:focus,
+.topology-panel input:focus {
+  border-color: var(--nx-cyan);
+  outline: 2px solid rgba(34, 211, 238, .14);
+}
+
+.app select,
+.topology-panel select {
+  color-scheme: dark;
+}
+
+.app option,
+.topology-panel option {
+  color: var(--nx-text);
+  background: #111b2e;
+}
+
+/* Primary actions */
+.management-form button,
+.full-simulation-actions button,
+.attack-panel .panel-header button,
+.details-panel form button,
+.asset-actions button:not(.danger-button) {
+  color: #fff;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  border-color: #3979ed;
+}
+
+.management-form button:hover:not(:disabled),
+.full-simulation-actions button:hover:not(:disabled),
+.attack-panel .panel-header button:hover:not(:disabled),
+.details-panel form button:hover:not(:disabled),
+.asset-actions button:not(.danger-button):hover:not(:disabled) {
+  background: linear-gradient(135deg, #3478f6, #245ce0);
+  border-color: #65a0ff;
+}
+
+.app button.danger-button,
+.app .danger-button {
+  color: #fecaca !important;
+  background: #451b29 !important;
+  border-color: #8b3447 !important;
+}
+
+/* Attack path and remediation sections */
+.attack-panel {
+  overflow: hidden;
+}
+
+.attack-panel .panel-header {
+  padding: 22px 24px;
+}
+
+.attack-results,
+.full-simulation-results {
+  color: var(--nx-text);
+}
+
+.attack-path-card {
+  background: rgba(10, 21, 38, .78);
+  border-color: #30435e;
+}
+
+.attack-path-card:hover,
+.attack-path-card.path-selected {
+  border-color: #eabf55;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+}
+
+.full-simulation-results {
+  background: rgba(10, 20, 36, .72);
+}
+
+.full-simulation-actions {
+  align-items: center;
+}
+
+.management-panel {
+  overflow: hidden;
+}
+
+/* Network topology — matching the JSX class names */
+.topology-panel {
+  width: 100%;
+  margin: 0 0 24px;
+  padding: 24px;
+  color: var(--nx-text);
+  overflow: hidden;
+}
+
+.topology-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(71, 91, 119, .34);
+}
+
+.topology-header h2 {
+  margin: 0;
+  color: #f4f7fc;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.topology-header p {
+  margin: 7px 0 0;
+  max-width: 720px;
+  color: var(--nx-muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.topology-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 7px 11px;
+  color: #6ee7b7;
+  background: rgba(6, 78, 59, .26);
+  border: 1px solid rgba(52, 211, 153, .32);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .09em;
+}
+
+.topology-live::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 10px rgba(52, 211, 153, .65);
+}
+
+.topology-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 18px 0;
+}
+
+.topology-stats > div {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  padding: 16px 18px;
+  background: linear-gradient(145deg, #172740, #111e32);
+  border: 1px solid #2c405b;
+  border-radius: 11px;
+}
+
+.topology-stats > div::after {
+  content: "";
+  position: absolute;
+  top: 15px;
+  right: 16px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--nx-cyan);
+  opacity: .8;
+}
+
+.topology-stats span {
+  color: #9aabc2;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.topology-stats strong {
+  color: #f8fbff;
+  font-size: 26px;
+  font-weight: 750;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.topology-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0;
+  padding: 12px;
+  background: rgba(8, 18, 32, .62);
+  border: 1px solid #273a54;
+  border-radius: 11px;
+}
+
+.topology-toolbar input {
+  flex: 1 1 320px;
+  width: 100%;
+  min-width: 160px;
+  min-height: 40px;
+}
+
+.topology-toolbar button {
+  flex: 0 0 auto;
+  min-width: 104px;
+}
+
+.topology-toolbar button:last-child {
+  color: #dffaff;
+  background: #12384a;
+  border-color: #23627a;
+}
+
+.topology-toolbar button:last-child:hover:not(:disabled) {
+  background: #18516a;
+  border-color: #2a91ad;
+}
+
+.topology-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 270px;
+  gap: 16px;
+  min-height: 440px;
+}
+
+.topology-graph {
+  width: 100%;
+  min-width: 0;
+  height: 440px;
+  border: 1px solid #293d59;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.topology-details {
+  min-width: 0;
+  padding: 18px;
+  background: rgba(8, 18, 32, .68);
+  border: 1px solid #293d59;
+  border-radius: 12px;
+}
+
+.topology-details h3 {
+  margin: 0 0 16px;
+  color: #f1f6ff;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.topology-details h4 {
+  margin: 0 0 14px;
+  color: #7dd3fc;
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+
+.topology-details .empty {
+  margin: 0;
+  padding: 14px;
+  color: #91a2bb;
+  background: rgba(30, 48, 72, .35);
+  border: 1px dashed #3a506d;
+  border-radius: 9px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.topology-detail-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 11px 0;
+  border-bottom: 1px solid rgba(71, 91, 119, .32);
+}
+
+.topology-detail-row:last-child {
+  border-bottom: 0;
+}
+
+.topology-detail-row span {
+  color: #8498b4;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.topology-detail-row strong {
+  color: #e5edf8;
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.topology-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 22px;
+  margin-top: 14px;
+  padding: 13px 15px;
+  color: #9aabc2;
+  background: rgba(8, 18, 32, .48);
+  border: 1px solid rgba(53, 74, 102, .7);
+  border-radius: 10px;
+  font-size: 11px;
+}
+
+.topology-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topology-legend i {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.topology-normal { background: #3b82f6; }
+.topology-high { background: #f59e0b; }
+.topology-critical { background: #ef4444; }
+.topology-edge {
+  width: 18px !important;
+  height: 2px !important;
+  border-radius: 2px !important;
+  background: #22d3ee;
+}
+
+.topology-panel .error,
+.topology-panel .loading {
+  margin: 12px 0;
+  border-radius: 9px;
+}
+
+/* Scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #354a66 #0b1424;
+}
+
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #0b1424;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #354a66;
+  border: 2px solid #0b1424;
+  border-radius: 999px;
+}
+
+/* Responsive layout */
+@media (max-width: 1050px) {
+  .topology-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .topology-details {
+    min-height: 150px;
+  }
+
+  .topology-graph {
+    height: 400px;
+  }
+}
+
+@media (max-width: 760px) {
+  .topology-panel {
+    padding: 16px;
+  }
+
+  .topology-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .topology-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .topology-toolbar input,
+  .topology-toolbar button {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .topology-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .topology-graph {
+    height: 340px;
+  }
+
+  .attack-panel .panel-header {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .main {
+    padding: 14px 12px;
+  }
+
+  .topology-panel {
+    padding: 13px;
+    border-radius: 11px;
+  }
+
+  .topology-header h2 {
+    font-size: 17px;
+  }
+
+  .topology-graph {
+    height: 300px;
+  }
+
+  .topology-legend {
+    gap: 10px 14px;
+  }
+
+  .stats,
+  .simulation-metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+/* Enterprise attack graph filters and navigation */
+.header {
+  position: relative;
+  top: auto;
+  z-index: 2;
+}
+
+.graph-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(130px, 1fr)) minmax(150px, auto);
+  align-items: end;
+  gap: 12px;
+  padding: 12px 18px;
+  background: rgba(8, 18, 32, .72);
+  border-bottom: 1px solid #263a55;
+}
+
+.graph-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #9fb1ca;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.graph-filters select {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  color: #eaf2ff;
+  background: #0b1729;
+  border: 1px solid #30445f;
+  border-radius: 8px;
+  font: inherit;
+}
+
+.filter-count {
+  align-self: center;
+  color: #67d8e8;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.graph-container .filter-dim {
+  opacity: .09;
+}
+
+.graph-toolbar button {
+  flex: 0 0 auto;
+  min-width: 42px;
+}
+
+@media (max-width: 900px) {
+  .graph-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .graph-filters {
+    grid-template-columns: 1fr;
+  }
+  .filter-count {
+    white-space: normal;
+  }
+}
+
+
+/* Asset Intelligence panel */
+.asset-intelligence {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.asset-intelligence-heading {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.asset-intelligence-heading .asset-name {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.asset-criticality-badge,
+.flag,
+.data-state {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  border: 1px solid var(--nx-border, #26364e);
+  background: rgba(30, 45, 68, .65);
+  color: #cbd5e1;
+}
+
+.asset-criticality-badge.critical {
+  color: #fecaca;
+  border-color: rgba(239, 68, 68, .4);
+  background: rgba(127, 29, 29, .25);
+}
+
+.asset-criticality-badge.high {
+  color: #fed7aa;
+  border-color: rgba(249, 115, 22, .4);
+  background: rgba(124, 45, 18, .22);
+}
+
+.asset-criticality-badge.medium {
+  color: #fde68a;
+  border-color: rgba(234, 179, 8, .35);
+}
+
+.asset-criticality-badge.low {
+  color: #a7f3d0;
+  border-color: rgba(16, 185, 129, .35);
+}
+
+.asset-security-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.flag.safe {
+  color: #86efac;
+  border-color: rgba(34, 197, 94, .25);
+}
+
+.flag.warning {
+  color: #fdba74;
+  border-color: rgba(249, 115, 22, .35);
+}
+
+.flag.danger {
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, .4);
+}
+
+.asset-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.asset-detail-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 11px;
+  border: 1px solid var(--nx-border, #26364e);
+  border-radius: 9px;
+  background: rgba(8, 18, 33, .48);
+}
+
+.asset-detail-card span,
+.asset-connection-stats span {
+  color: #8194af;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .045em;
+}
+
+.asset-detail-card strong {
+  color: #e2e8f0;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.asset-intel-section {
+  padding-top: 13px;
+  border-top: 1px solid var(--nx-border, #26364e);
+}
+
+.asset-intel-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.asset-intel-section-heading h3 {
+  margin: 0;
+  color: #e2e8f0;
+  font-size: 12px;
+}
+
+.asset-intel-section-heading > span {
+  color: #8ba0bd;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.asset-intel-section-heading .data-state {
+  color: #fbbf24;
+  padding: 3px 7px;
+  font-size: 9px;
+}
+
+.asset-connection-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.asset-connection-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 7px;
+  border-radius: 8px;
+  border: 1px solid var(--nx-border, #26364e);
+  background: rgba(8, 18, 33, .48);
+}
+
+.asset-connection-stats strong {
+  color: #f8fafc;
+  font-size: 19px;
+}
+
+.asset-connection-stats span {
+  font-size: 9px;
+}
+
+.asset-data-note {
+  margin: 0;
+  color: #91a2ba;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+@media (max-width: 900px) {
+  .asset-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .asset-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+
+/* =========================================================
+   NEXAGRAPH AI — FULL DEVICE RESPONSIVENESS
+   Additive overrides. Existing desktop styling and behavior
+   are retained; these rules adapt all existing panels.
+   ========================================================= */
+
+.app,
+.main,
+.workspace,
+.graph-panel,
+.details-panel,
+.management-panel,
+.topology-panel,
+.attack-panel,
+.full-simulation-panel {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.main {
+  width: 100%;
+  padding-inline: clamp(12px, 2.5vw, 32px);
+}
+
+.header {
+  min-width: 0;
+  gap: 16px;
+  padding-inline: clamp(14px, 2.5vw, 32px);
+}
+
+.header > div:first-child {
+  min-width: 0;
+}
+
+.header h1,
+.header p,
+.panel-header h2,
+.panel-header p {
+  overflow-wrap: anywhere;
+}
+
+.stats,
+.simulation-metrics,
+.attack-summary,
+.attack-path-list,
+.forms-grid,
+.topology-stats,
+.asset-detail-grid,
+.asset-connection-stats {
+  min-width: 0;
+}
+
+.stat-card,
+.management-form,
+.attack-path-card,
+.recommendation-item,
+.full-simulation-results,
+.topology-details,
+.asset-detail-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.graph-container,
+.topology-graph {
+  min-width: 0;
+  max-width: 100%;
+  touch-action: pan-x pan-y;
+}
+
+.graph-toolbar,
+.topology-toolbar,
+.full-simulation-actions,
+.asset-actions {
+  flex-wrap: wrap;
+}
+
+.graph-toolbar input,
+.topology-toolbar input,
+.graph-filters select,
+.management-form input,
+.management-form select,
+.management-form textarea {
+  min-width: 0;
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+
+button,
+.management-form input,
+.management-form select,
+.graph-filters select,
+.topology-toolbar input {
+  min-height: 42px;
+}
+
+.path-sequence,
+.recommendation-asset,
+.recommendation-item,
+.detail-row strong,
+.topology-detail-row strong {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (max-width: 1100px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .details-panel {
+    width: 100%;
+  }
+
+  .simulation-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .graph-container {
+    height: clamp(340px, 55vw, 520px);
+  }
+}
+
+@media (max-width: 760px) {
+  .header {
+    min-height: 72px;
+    height: auto;
+    padding-block: 14px;
+    align-items: flex-start;
+  }
+
+  .header h1 {
+    font-size: clamp(18px, 4vw, 22px);
+  }
+
+  .header p {
+    max-width: 52ch;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  .status {
+    flex: 0 0 auto;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+
+  .main {
+    padding-block: 16px;
+  }
+
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .stat-card {
+    padding: 14px;
+  }
+
+  .stat-card strong {
+    font-size: clamp(21px, 5vw, 27px);
+  }
+
+  .panel-header {
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 15px;
+  }
+
+  .graph-container {
+    height: 390px;
+  }
+
+  .graph-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) repeat(2, auto);
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .graph-toolbar input {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .graph-toolbar button {
+    min-width: 0;
+  }
+
+  .graph-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 12px;
+  }
+
+  .forms-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .management-panel {
+    padding: 16px;
+  }
+
+  .management-form {
+    padding: 15px;
+  }
+
+  .simulation-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .full-simulation-results {
+    padding: 14px;
+  }
+
+  .topology-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .topology-details {
+    width: 100%;
+  }
+
+  .topology-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .topology-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .topology-toolbar input {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .topology-toolbar button {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 9px;
+  }
+
+  .status {
+    align-self: flex-start;
+  }
+
+  .main {
+    padding: 13px 10px;
+  }
+
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .stat-card {
+    padding: 12px 10px;
+  }
+
+  .stat-card span {
+    font-size: 11px;
+  }
+
+  .stat-card strong {
+    font-size: 22px;
+  }
+
+  .graph-container {
+    height: 330px;
+  }
+
+  .graph-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .graph-toolbar input {
+    grid-column: 1 / -1;
+  }
+
+  .graph-toolbar button {
+    width: 100%;
+    padding-inline: 8px;
+  }
+
+  .graph-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .graph-legend,
+  .topology-legend {
+    gap: 9px 12px;
+    font-size: 10px;
+  }
+
+  .management-panel,
+  .topology-panel {
+    padding: 13px;
+  }
+
+  .management-form {
+    padding: 12px;
+  }
+
+  .asset-actions,
+  .full-simulation-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .asset-actions button,
+  .full-simulation-actions button {
+    width: 100%;
+  }
+
+  .attack-path-card {
+    padding: 14px;
+  }
+
+  .simulation-metrics,
+  .full-simulation-results .attack-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .topology-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .topology-graph {
+    height: 300px;
+  }
+
+  .asset-connection-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .asset-connection-stats > div {
+    padding: 9px 5px;
+  }
+
+  .asset-connection-stats strong {
+    font-size: 17px;
+  }
+}
+
+@media (max-width: 360px) {
+  .stats,
+  .simulation-metrics,
+  .full-simulation-results .attack-summary,
+  .topology-stats,
+  .asset-connection-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .graph-container {
+    height: 285px;
+  }
+
+  .graph-toolbar,
+  .topology-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .graph-toolbar input,
+  .topology-toolbar input {
+    grid-column: auto;
+  }
+
+  .topology-graph {
+    height: 270px;
+  }
+}
+
+/* Keep keyboard focus visible and controls usable on touch devices. */
+:where(button, input, select, textarea, a):focus-visible {
+  outline: 2px solid #67e8f9;
+  outline-offset: 2px;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  button,
+  .graph-toolbar button,
+  .topology-toolbar button {
+    min-height: 44px;
+  }
+}
+
+
+/* Royal theme control and shared visual polish */
+.header-actions { display:flex; align-items:center; gap:18px; }
+.theme-toggle {
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  min-height:38px; padding:0 13px; border-radius:9px;
+  color:#f5f2ea; background:#192641; border:1px solid #394761;
+  font-size:12px; font-weight:700; transition:all .2s ease;
+}
+.theme-toggle:hover { border-color:#d4af62; transform:translateY(-1px); }
+.theme-toggle span { color:#d4af62; font-size:16px; }
+.header-actions .status { white-space:nowrap; }
+
+
+/* NexaGraph AI authenticated header controls */
+
+.header-actions { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.nx-user-chip { display:flex; align-items:center; gap:9px; }
+.nx-user-avatar { flex:0 0 auto; }
+.nx-user-meta { min-width:0; }
+.nx-logout-button { white-space:nowrap; }
+@media (max-width: 760px) {
+  .header { height:auto; min-height:80px; padding:14px 16px; gap:12px; flex-wrap:wrap; }
+  .header-actions { justify-content:flex-start; }
+}

@@ -107,9 +107,15 @@ app.include_router(security_event_router)
 app.include_router(intelligence_router)
 app.include_router(auth_router)
 
+FRONTEND_ORIGINS = [
+    "http://127.0.0.1:5173",
+    "http://localhost:5173",
+    "https://nexagraph-ai.onrender.com",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
+    allow_origins=FRONTEND_ORIGINS,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],

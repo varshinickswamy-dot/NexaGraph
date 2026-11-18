@@ -107,15 +107,30 @@ app.include_router(security_event_router)
 app.include_router(intelligence_router)
 app.include_router(auth_router)
 
-FRONTEND_ORIGINS = [
+# CORS configuration:
+# Keep local development origins and add deployed frontend origin(s)
+# through the FRONTEND_ORIGINS environment variable on Render.
+# Separate multiple frontend domains with commas.
+configured_frontend_origins = os.getenv("FRONTEND_ORIGINS", "")
+
+frontend_origins = [
+    origin.strip().rstrip("/")
+    for origin in configured_frontend_origins.split(",")
+    if origin.strip()
+]
+
+allowed_origins = [
     "http://127.0.0.1:5173",
     "http://localhost:5173",
-    "https://nexagraph-ai.onrender.com",
 ]
+
+for origin in frontend_origins:
+    if origin not in allowed_origins:
+        allowed_origins.append(origin)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=FRONTEND_ORIGINS,
+    allow_origins=allowed_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],

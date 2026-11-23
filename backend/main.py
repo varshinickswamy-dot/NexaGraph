@@ -7,6 +7,7 @@ from pathlib import Path
 from backend.vulnerability_routes import router as vulnerability_router
 from backend.auth_routes import router as auth_router
 from backend.incident_routes import router as incident_router
+from backend.ml.api import router as ml_router
 
 from backend.intelligence_routes import router as intelligence_router
 from backend.security_event_routes import router as security_event_router
@@ -106,6 +107,7 @@ app.include_router(incident_router)
 app.include_router(security_event_router)
 app.include_router(intelligence_router)
 app.include_router(auth_router)
+app.include_router(ml_router)
 
 # CORS configuration:
 # Keep local development origins and add deployed frontend origin(s)

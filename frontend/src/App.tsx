@@ -14,6 +14,7 @@ const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 const AUTH_TOKEN_KEY = "nexagraph-access-token";
 import "./AuthScreen.css";
 import AuthScreen from "./AuthScreen";
+import MLDetectionDashboard from "./MLDetectionDashboard";
 
 type AuthUser = {
   id: string;
@@ -960,6 +961,7 @@ function App() {
             <strong>{compromisedCount}</strong>
           </div>
         </section>
+        <MLDetectionDashboard />
 
         {/* Organization team management: visible only to authorized administrators */}
         {(authUser.role === "ORG_ADMIN" || authUser.role === "SUPER_ADMIN") && (

@@ -293,6 +293,31 @@ export default function IncidentManagement() {
       .filter((item) => item.severity === value)
       .reduce((total, item) => total + item.count, 0) ?? 0;
 
+  const investigationTimeline = selected ? [
+    {
+      id: "created",
+      kind: "created",
+      title: "Incident created",
+      detail: selected.description || "Incident record created without a description.",
+      at: selected.created_at,
+    },
+    ...(selected.updated_at && selected.updated_at !== selected.created_at ? [{
+      id: "updated",
+      kind: "updated",
+      title: "Incident record updated",
+      detail: `Current status: ${selected.status} · Severity: ${selected.severity}`,
+      at: selected.updated_at,
+    }] : []),
+    ...(selected.notes || []).map((item) => ({
+      id: item.id,
+      kind: "note",
+      title: "Investigation note",
+      detail: item.note,
+      at: item.created_at,
+    })),
+  ].filter((item) => item.at && !Number.isNaN(new Date(item.at).getTime()))
+    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()) : [];
+
   function saveOrganization() {
     localStorage.setItem(
       "nexagraph-organization-id",
@@ -618,20 +643,23 @@ export default function IncidentManagement() {
                     </button>
                   </form>
 
-                  <div className="incident-notes">
-                    {selected.notes?.map((item) => (
-                      <article key={item.id}>
-                        <p>{item.note}</p>
-                        <small>
-                          {new Date(item.created_at).toLocaleString()}
-                        </small>
+                  <h4>Investigation timeline</h4>
+                  <p className="incident-timeline-hint">
+                    Chronological record assembled from the incident creation,
+                    latest record update and saved investigation notes.
+                  </p>
+                  <div className="incident-timeline">
+                    {investigationTimeline.length ? investigationTimeline.map((entry) => (
+                      <article className={`incident-timeline-entry ${entry.kind}`} key={entry.id}>
+                        <span className="incident-timeline-marker" aria-hidden="true" />
+                        <div>
+                          <strong>{entry.title}</strong>
+                          <p>{entry.detail}</p>
+                          <small>{new Date(entry.at).toLocaleString()}</small>
+                        </div>
                       </article>
-                    ))}
-
-                    {selected.notes?.length === 0 && (
-                      <p className="incident-empty">
-                        No investigation notes yet.
-                      </p>
+                    )) : (
+                      <p className="incident-empty">No timeline activity is available.</p>
                     )}
                   </div>
                 </>

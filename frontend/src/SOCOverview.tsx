@@ -124,6 +124,28 @@ export default function SOCOverview({ organizationId }: Props) {
   const activeIncidentCount = incident?.breakdown
     ? countActiveIncidents(incident.breakdown)
     : incident ? Number(incident.total) || 0 : "—";
+  const incidentAnalysis = useMemo(() => {
+    const rows = incident?.breakdown ?? [];
+    const statusCounts = new Map<string, number>();
+    const severityCounts = new Map<string, number>();
+    rows.forEach((row) => {
+      const status = String(row.status || "UNKNOWN").toUpperCase();
+      const severity = String(row.severity || "UNKNOWN").toUpperCase();
+      const count = Number(row.count) || 0;
+      statusCounts.set(status, (statusCounts.get(status) || 0) + count);
+      severityCounts.set(severity, (severityCounts.get(severity) || 0) + count);
+    });
+    const total = rows.reduce((sum, row) => sum + (Number(row.count) || 0), 0);
+    const resolved = [...statusCounts.entries()]
+      .filter(([status]) => ["RESOLVED", "CLOSED"].includes(status))
+      .reduce((sum, [, count]) => sum + count, 0);
+    const statuses = [...statusCounts.entries()].sort((a, b) => b[1] - a[1]);
+    const severities = ["CRITICAL", "HIGH", "MEDIUM", "LOW"].map((severity) => ({
+      label: severity,
+      count: severityCounts.get(severity) || 0,
+    }));
+    return { total, resolved, resolutionRate: total ? Math.round((resolved / total) * 100) : 0, statuses, severities };
+  }, [incident]);
   const criticalEvents = Number(events?.critical) || 0;
   const highEvents = Number(events?.high) || 0;
   const priorityCount = criticalFindings + criticalIncidents + criticalEvents + highIncidents + highEvents;
@@ -187,6 +209,38 @@ export default function SOCOverview({ organizationId }: Props) {
             <div><span className="soc-severity high">High security events · all time</span><strong>{highEvents}</strong></div>
           </div>
           <p className="soc-footnote">Counts are sourced from existing module APIs; the same underlying issue may appear in more than one category.</p>
+        </article>
+        <article className="soc-panel soc-incident-analysis">
+          <div className="soc-panel-title"><h3>Incident analysis</h3><span>Live status and severity distribution</span></div>
+          {incident ? (
+            <>
+              <div className="soc-resolution-summary">
+                <div><strong>{incidentAnalysis.resolutionRate}%</strong><span>Resolved / closed</span></div>
+                <div><strong>{incidentAnalysis.resolved}</strong><span>Of {incidentAnalysis.total} total incidents</span></div>
+              </div>
+              <div className="soc-analysis-columns">
+                <div className="soc-analysis-group">
+                  <h4>By status</h4>
+                  {incidentAnalysis.statuses.length ? incidentAnalysis.statuses.map(([status, count]) => (
+                    <div className="soc-analysis-row" key={status}>
+                      <span>{status.replaceAll("_", " ")}</span><strong>{count}</strong>
+                      <div className="soc-analysis-track"><i style={{ width: `${incidentAnalysis.total ? (count / incidentAnalysis.total) * 100 : 0}%` }} /></div>
+                    </div>
+                  )) : <p className="soc-footnote">No incidents recorded.</p>}
+                </div>
+                <div className="soc-analysis-group">
+                  <h4>By severity</h4>
+                  {incidentAnalysis.severities.map((item) => (
+                    <div className="soc-analysis-row" key={item.label}>
+                      <span>{item.label}</span><strong>{item.count}</strong>
+                      <div className="soc-analysis-track"><i className={item.label.toLowerCase()} style={{ width: `${incidentAnalysis.total ? (item.count / incidentAnalysis.total) * 100 : 0}%` }} /></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <p className="soc-footnote">Resolution rate is based on incidents currently marked RESOLVED or CLOSED. This is a current-state snapshot, not a time-based trend.</p>
+            </>
+          ) : <p className="soc-footnote">Incident analysis is unavailable until the incident summary loads.</p>}
         </article>
         <article className="soc-panel">
           <div className="soc-panel-title"><h3>Security event types</h3><span>All recorded events</span></div>

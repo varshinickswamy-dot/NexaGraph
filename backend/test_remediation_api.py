@@ -54,6 +54,21 @@ def mock_graph(monkeypatch):
     original_nodes = [dict(node) for node in nodes]
     original_edges = [dict(edge) for edge in edges]
 
+    # Keep the production authentication dependency enabled while supplying
+    # an isolated authenticated organization-scoped user to this API test.
+    monkeypatch.setitem(
+        main.app.dependency_overrides,
+        main.get_current_user,
+        lambda: {
+            "id": "ci-test-user",
+            "full_name": "CI Test User",
+            "email": "ci-test@example.invalid",
+            "organization_id": "ci-test-organization",
+            "role": "ANALYST",
+            "session_id": "ci-test-session",
+        },
+    )
+
     monkeypatch.setattr(
         main,
         "graph_data",

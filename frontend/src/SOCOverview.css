@@ -47,3 +47,16 @@
 .soc-analysis-track i.medium{background:#d4af62}
 .soc-analysis-track i.low{background:#35b8a0}
 @media(max-width:420px){.soc-analysis-columns{grid-template-columns:1fr}.soc-resolution-summary strong{font-size:19px}}
+
+
+/* Asset risk intelligence */
+.soc-risk-assets{display:grid;gap:10px}
+.soc-risk-asset{display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:center;gap:9px;padding:10px;border:1px solid var(--border,#293953);border-radius:9px;background:rgba(148,163,184,.035)}
+.soc-risk-rank{display:grid;place-items:center;width:23px;height:23px;border-radius:7px;background:rgba(212,175,98,.13);color:var(--accent,#d4af62);font-size:10px;font-weight:700}
+.soc-risk-main{display:grid;gap:3px;min-width:0}
+.soc-risk-main strong{font-size:11px;overflow-wrap:anywhere}
+.soc-risk-main span,.soc-risk-main small{font-size:9px;color:var(--muted,#aab5c8);overflow-wrap:anywhere}
+.soc-risk-score{display:flex;align-items:baseline;gap:2px;white-space:nowrap}
+.soc-risk-score strong{font-size:17px;color:var(--accent,#d4af62)}
+.soc-risk-score span{font-size:8px;color:var(--muted,#aab5c8)}
+@media(max-width:420px){.soc-risk-asset{grid-template-columns:22px minmax(0,1fr) auto;gap:7px;padding:8px}.soc-risk-main strong{font-size:10px}.soc-risk-score strong{font-size:15px}}

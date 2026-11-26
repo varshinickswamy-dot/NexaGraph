@@ -15,6 +15,7 @@ const AUTH_TOKEN_KEY = "nexagraph-access-token";
 import "./AuthScreen.css";
 import AuthScreen from "./AuthScreen";
 import MLDetectionDashboard from "./MLDetectionDashboard";
+import SOCOverview from "./SOCOverview";
 
 type AuthUser = {
   id: string;
@@ -971,6 +972,7 @@ function App() {
           <nav className="nx-sidebar-nav">
             {[
               { id: "overview", icon: "▦", label: "Overview" },
+              { id: "soc-overview", icon: "◉", label: "SOC Overview" },
               { id: "ml-detection", icon: "◈", label: "AI Threat Detection" },
               { id: "network-topology", icon: "⌘", label: "Network Topology" },
               { id: "vulnerability-intelligence", icon: "◇", label: "Vulnerability Intel" },
@@ -1045,6 +1047,8 @@ function App() {
 
         {/* PostgreSQL-backed vulnerability intelligence */}
         <section id="vulnerability-intelligence" className="nx-nav-section"><VulnerabilityIntelligence /></section>
+
+        <section id="soc-overview" className="nx-nav-section"><SOCOverview organizationId={authUser.organization_id} /></section>
 
         <section id="incidents" className="nx-nav-section"><IncidentManagement /></section>
         <section id="security-events" className="nx-nav-section"><SecurityEventMonitoring /></section>

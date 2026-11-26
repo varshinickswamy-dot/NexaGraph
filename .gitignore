@@ -21,3 +21,7 @@ htmlcov/
 !.env.example
 # Runtime logs
 backend/logs/
+
+# Large CIC-IDS-2017 datasets stay local; never commit hundreds of MB of CSV data
+/data/raw/
+/data/processed/

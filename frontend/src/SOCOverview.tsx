@@ -18,7 +18,7 @@ type EventSummary = {
   event_types?: { event_type?: string; count?: number }[];
 };
 type GraphData = { nodes?: unknown[]; edges?: unknown[] };
-type SecurityEvent = { id?: string; event_type?: string; severity?: string; occurred_at?: string; created_at?: string };
+type SecurityEvent = { id?: string; event_type?: string; severity?: string; description?: string; occurred_at?: string; created_at?: string };
 type Finding = {
   finding_id?: string;
   graph_asset_id?: string;
@@ -70,6 +70,15 @@ export default function SOCOverview({ organizationId }: Props) {
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState<string[]>([]);
+  const [alertFilter, setAlertFilter] = useState<"ALL" | "CRITICAL" | "HIGH">("ALL");
+  const [readAlertIds, setReadAlertIds] = useState<string[]>(() => {
+    try {
+      const stored = window.localStorage.getItem("nexagraph:soc:read-alerts");
+      return stored ? JSON.parse(stored) as string[] : [];
+    } catch {
+      return [];
+    }
+  });
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -186,6 +195,46 @@ export default function SOCOverview({ organizationId }: Props) {
   const criticalEvents = Number(events?.critical) || 0;
   const highEvents = Number(events?.high) || 0;
   const priorityCount = criticalFindings + criticalIncidents + criticalEvents + highIncidents + highEvents;
+  const alerts = useMemo(() => {
+    const generated: { id: string; severity: "CRITICAL" | "HIGH"; title: string; detail: string; time: string; target: string }[] = [];
+    recentEvents.forEach((event) => {
+      const severity = String(event.severity || "").toUpperCase();
+      if (severity !== "CRITICAL" && severity !== "HIGH") return;
+      const id = event.id ? `event-${event.id}` : "";
+      if (!id) return;
+      generated.push({
+        id, severity, title: (event.event_type || "Security event").replaceAll("_", " "),
+        detail: event.description || "Security event recorded by monitoring.",
+        time: event.occurred_at || event.created_at || "", target: "security-events",
+      });
+    });
+    activeFindings.forEach((finding) => {
+      const severity = String(finding.severity || "").toUpperCase();
+      if (severity !== "CRITICAL" && severity !== "HIGH") return;
+      const id = finding.finding_id ? `finding-${finding.finding_id}` : "";
+      if (!id) return;
+      generated.push({
+        id, severity, title: `${severity} vulnerability`,
+        detail: `${finding.asset_name || "Affected asset"}${finding.cvss_score != null ? ` · CVSS ${Number(finding.cvss_score).toFixed(1)}` : ""}`,
+        time: "", target: "vulnerability-intelligence",
+      });
+    });
+    return generated.sort((a, b) => (a.severity === b.severity ? (b.time || "").localeCompare(a.time || "") : a.severity === "CRITICAL" ? -1 : 1)).slice(0, 100);
+  }, [recentEvents, activeFindings]);
+  const visibleAlerts = alerts.filter((alert) => alertFilter === "ALL" || alert.severity === alertFilter);
+  const unreadAlertCount = alerts.filter((alert) => !readAlertIds.includes(alert.id)).length;
+  const markAlertRead = (id: string) => {
+    setReadAlertIds((current) => {
+      const next = current.includes(id) ? current : [...current, id].slice(-500);
+      try { window.localStorage.setItem("nexagraph:soc:read-alerts", JSON.stringify(next)); } catch { /* storage may be unavailable */ }
+      return next;
+    });
+  };
+  const markAllAlertsRead = () => {
+    const next = [...new Set([...readAlertIds, ...alerts.map((alert) => alert.id)])].slice(-500);
+    setReadAlertIds(next);
+    try { window.localStorage.setItem("nexagraph:soc:read-alerts", JSON.stringify(next)); } catch { /* storage may be unavailable */ }
+  };
   const activityTimeline = useMemo(() => {
     const days = Array.from({ length: 7 }, (_, index) => {
       const date = new Date();
@@ -236,6 +285,39 @@ export default function SOCOverview({ organizationId }: Props) {
       </div>
 
       <div className="soc-lower-grid">
+        <article className="soc-panel soc-alert-centre">
+          <div className="soc-panel-title">
+            <h3>Alert centre <span className="soc-alert-count">{unreadAlertCount} unread</span></h3>
+            <button type="button" className="soc-text-button" onClick={markAllAlertsRead} disabled={!unreadAlertCount}>Mark all read</button>
+          </div>
+          <div className="soc-alert-toolbar" role="group" aria-label="Filter alerts">
+            {(["ALL", "CRITICAL", "HIGH"] as const).map((filter) => (
+              <button type="button" key={filter} className={alertFilter === filter ? "active" : ""} aria-pressed={alertFilter === filter} onClick={() => setAlertFilter(filter)}>
+                {filter === "ALL" ? "All" : filter}
+              </button>
+            ))}
+            <span>{visibleAlerts.length} alerts</span>
+          </div>
+          <div className="soc-alert-list">
+            {visibleAlerts.length ? visibleAlerts.slice(0, 20).map((alert) => {
+              const isRead = readAlertIds.includes(alert.id);
+              return (
+                <div className={`soc-alert-row ${isRead ? "is-read" : "is-unread"}`} key={alert.id}>
+                  <span className={`soc-alert-severity ${alert.severity.toLowerCase()}`}>{alert.severity}</span>
+                  <div className="soc-alert-copy">
+                    <strong>{alert.title}</strong><span>{alert.detail}</span>
+                    {alert.time && <small>{new Date(alert.time).toLocaleString()}</small>}
+                  </div>
+                  <div className="soc-alert-actions">
+                    <button type="button" onClick={() => document.getElementById(alert.target)?.scrollIntoView({ behavior: "smooth", block: "start" })}>Open</button>
+                    <button type="button" onClick={() => markAlertRead(alert.id)} disabled={isRead}>{isRead ? "Read" : "Mark read"}</button>
+                  </div>
+                </div>
+              );
+            }) : <p className="soc-footnote">No alerts match this filter. High and critical events and vulnerabilities appear here when available.</p>}
+          </div>
+          <p className="soc-footnote">Alerts are generated from existing event and vulnerability records. Read status is saved in this browser; no backend alert records are created.</p>
+        </article>
         <article className="soc-panel">
           <div className="soc-panel-title"><h3>Priority signals</h3><span>{priorityCount} high-priority items</span></div>
           <div className="soc-signal-list">

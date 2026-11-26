@@ -132,7 +132,8 @@ export default function SOCOverview({ organizationId }: Props) {
       const date = new Date();
       date.setHours(0, 0, 0, 0);
       date.setDate(date.getDate() - (6 - index));
-      return { key: date.toISOString().slice(0, 10), label: date.toLocaleDateString(undefined, { weekday: "short" }), count: 0, critical: 0 };
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      return { key, label: date.toLocaleDateString(undefined, { weekday: "short" }), count: 0, critical: 0 };
     });
     const byDate = new Map(days.map((day) => [day.key, day]));
     recentEvents.forEach((event) => {
@@ -140,7 +141,8 @@ export default function SOCOverview({ organizationId }: Props) {
       if (!rawDate) return;
       const date = new Date(rawDate);
       if (Number.isNaN(date.getTime())) return;
-      const day = byDate.get(date.toISOString().slice(0, 10));
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      const day = byDate.get(key);
       if (!day) return;
       day.count += 1;
       if (String(event.severity || "").toUpperCase() === "CRITICAL") day.critical += 1;

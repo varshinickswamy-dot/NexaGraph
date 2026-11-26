@@ -1076,10 +1076,10 @@ def create_organization_invitation(
         return {
             "success": True,
             "message": (
-                "Invitation created and email accepted by the SMTP server."
+                "Invitation created and the email was accepted by Resend."
                 if email_sent
-                else "Invitation created, but email delivery failed. "
-                     "The invitation remains valid; retry email delivery."
+                else "Invitation created, but Resend could not accept the email. "
+                     "The invitation remains valid; check the email service configuration and retry."
             ),
             "invitation_id": str(invitation_id),
             "organization_id": str(target_organization_id),

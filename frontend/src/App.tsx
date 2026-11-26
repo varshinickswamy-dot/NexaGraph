@@ -996,7 +996,7 @@ function App() {
         </aside>
         {sidebarOpen && <button className="nx-sidebar-backdrop" aria-label="Close navigation" onClick={() => setSidebarOpen(false)} />}
         <button
-          className="nx-floating-menu"
+          className={`nx-floating-menu ${sidebarOpen ? "is-sidebar-open" : ""}`}
           type="button"
           onClick={() => setSidebarOpen((open) => !open)}
           aria-expanded={sidebarOpen}
@@ -1007,7 +1007,7 @@ function App() {
           <span aria-hidden="true">{sidebarOpen ? "×" : "☰"}</span>
         </button>
         <button
-          className="nx-floating-search"
+          className={`nx-floating-search ${sidebarOpen ? "is-sidebar-open" : ""}`}
           type="button"
           onClick={() => { setCommandQuery(""); setCommandOpen(true); }}
           aria-label="Open quick navigation"

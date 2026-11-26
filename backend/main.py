@@ -300,6 +300,8 @@ def get_graph(current_user: dict = Depends(get_current_user)):
         if not organization_id and current_user.get("role") != "SUPER_ADMIN":
             raise HTTPException(status_code=403, detail="Your account is not assigned to an organization.")
         return graph_data(organization_id)
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(
             status_code=503,
@@ -392,10 +394,6 @@ def add_connection(connection: ConnectionInput, current_user: dict = Depends(req
 
     source = connection.source.strip()
     target = connection.target.strip()
-    organization_id = current_user.get("organization_id")
-    if not organization_id:
-        raise HTTPException(status_code=403, detail="An organization must be selected for network changes.")
-
     relationship = connection.relationship.strip().upper()
 
     if relationship not in {"CONNECTS_TO", "ALLOWS_TRAFFIC", "CONNECTS"}:
@@ -406,8 +404,6 @@ def add_connection(connection: ConnectionInput, current_user: dict = Depends(req
 
     if source == target:
         raise HTTPException(400, "Source and target must be different assets.")
-    if relationship not in {"CONNECTS_TO", "ALLOWS_TRAFFIC", "CONNECTS"}:
-        raise HTTPException(400, "Unsupported network relationship type.")
 
     try:
         if driver is None:
@@ -421,6 +417,7 @@ def add_connection(connection: ConnectionInput, current_user: dict = Depends(req
                 edge["source"] == source
                 and edge["target"] == target
                 and edge["relationship"] == relationship
+                and str(edge.get("organization_id")) == str(organization_id)
                 for edge in GRAPH_STATE["edges"]
             ):
                 return {"message": "Connection already exists.", "graph": graph_data(organization_id)}
@@ -436,9 +433,14 @@ def add_connection(connection: ConnectionInput, current_user: dict = Depends(req
 
         with driver.session() as session:
             result = session.run("""
-                MATCH (a:Asset {id: $source, organization_id: $organization_id})
-                MATCH (b:Asset {id: $target, organization_id: $organization_id})
-                RETURN a.id AS source, b.id AS target
+                MATCH (a:Asset)
+                WHERE coalesce(a.graph_key, a.id) = $source
+                  AND a.organization_id = $organization_id
+                MATCH (b:Asset)
+                WHERE coalesce(b.graph_key, b.id) = $target
+                  AND b.organization_id = $organization_id
+                RETURN coalesce(a.graph_key, a.id) AS source,
+                       coalesce(b.graph_key, b.id) AS target
             """, source=source, target=target, organization_id=organization_id).single()
 
             if not result:
@@ -448,8 +450,12 @@ def add_connection(connection: ConnectionInput, current_user: dict = Depends(req
                 )
 
             session.run(f"""
-                MATCH (a:Asset {{id: $source, organization_id: $organization_id}})
-                MATCH (b:Asset {{id: $target, organization_id: $organization_id}})
+                MATCH (a:Asset)
+                WHERE coalesce(a.graph_key, a.id) = $source
+                  AND a.organization_id = $organization_id
+                MATCH (b:Asset)
+                WHERE coalesce(b.graph_key, b.id) = $target
+                  AND b.organization_id = $organization_id
                 CREATE (a)-[r:{relationship} {{
                     protocol: $protocol
                 }}]->(b)
@@ -568,7 +574,9 @@ def delete_asset(asset_id: str, current_user: dict = Depends(require_roles("SUPE
 
         with driver.session() as session:
             result = session.run("""
-                MATCH (a:Asset {id: $id, organization_id: $organization_id})
+                MATCH (a:Asset)
+                WHERE coalesce(a.graph_key, a.id) = $id
+                  AND a.organization_id = $organization_id
                 DETACH DELETE a
                 RETURN count(*) AS deleted
             """, id=asset_id, organization_id=organization_id).single()
@@ -601,7 +609,14 @@ class DeleteConnectionInput(BaseModel):
 def delete_connection(connection: DeleteConnectionInput, current_user: dict = Depends(require_roles("SUPER_ADMIN", "ORG_ADMIN"))):
     import re
 
+    organization_id = current_user.get("organization_id")
+    if not organization_id:
+        raise HTTPException(status_code=403, detail="An organization must be selected for network changes.")
+
     relationship = connection.relationship.strip().upper()
+
+    if relationship not in {"CONNECTS_TO", "ALLOWS_TRAFFIC", "CONNECTS"}:
+        raise HTTPException(status_code=400, detail="Unsupported network relationship type.")
 
     if not re.fullmatch(r"[A-Z][A-Z0-9_]{0,39}", relationship):
         raise HTTPException(
@@ -907,6 +922,16 @@ def get_attack_paths(current_user: dict = Depends(get_current_user)):
             raise HTTPException(status_code=403, detail="Your account is not assigned to an organization.")
         data = graph_data(organization_id)
         return analyze_graph_snapshot(data["nodes"], data["edges"])
+    except HTTPException:
+        raise
+    except HTTPException:
+        raise
+    except HTTPException:
+        raise
+    except HTTPException:
+        raise
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(
             status_code=503,

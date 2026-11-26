@@ -85,7 +85,7 @@ def test_remove_connection_success(mock_graph):
             "action_type": "remove-connection",
             "source_id": "A02",
             "destination_id": "A06",
-            "relationship": "ACCESSES",
+            "relationship": "CONNECTS",
         },
     )
 

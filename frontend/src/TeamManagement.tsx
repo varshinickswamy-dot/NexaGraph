@@ -428,7 +428,7 @@ export default function TeamManagement() {
                 </div>
 
                 {result.status === "success" ? (
-
+                  <>
                   <div className="invitation-email-status" role="status">
                     <span className={result.email_sent ? "email-delivery-sent" : "email-delivery-failed"}>
                       {result.email_sent ? "Email accepted by Resend" : "Email not sent"}
@@ -459,7 +459,7 @@ export default function TeamManagement() {
                     </small>
 
                   </div>
-
+                  </>
                 ) : (
 
                   <p className="team-error">

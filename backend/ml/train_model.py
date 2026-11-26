@@ -1,4 +1,5 @@
 import json
+import os
 import time
 import joblib
 import numpy as np
@@ -21,8 +22,14 @@ from sklearn.metrics import (
 from sklearn.utils.class_weight import compute_sample_weight
 
 
-DATA_PATH = Path("data/processed/cic_ids2017_features.csv")
-ARTIFACT_DIR = Path("backend/ml/artifacts")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DATA_PATH = Path(
+    os.getenv(
+        "NEXAGRAPH_TRAINING_DATA",
+        str(PROJECT_ROOT / "data" / "processed" / "cic_ids2017_features.csv"),
+    )
+).expanduser().resolve()
+ARTIFACT_DIR = PROJECT_ROOT / "backend" / "ml" / "artifacts"
 
 MODEL_PATH = ARTIFACT_DIR / "nexagraph_binary_model.joblib"
 REPORT_PATH = ARTIFACT_DIR / "training_metrics.json"

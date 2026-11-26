@@ -134,9 +134,21 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
+
+
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    if request.url.scheme == "https":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 
 class AssetInput(BaseModel):
@@ -643,8 +655,12 @@ def delete_connection(connection: DeleteConnectionInput, current_user: dict = De
 
         with driver.session() as session:
             result = session.run(f"""
-                MATCH (a:Asset {{id: $source, organization_id: $organization_id}})
-                MATCH (b:Asset {{id: $target, organization_id: $organization_id}})
+                MATCH (a:Asset)
+                WHERE coalesce(a.graph_key, a.id) = $source
+                  AND a.organization_id = $organization_id
+                MATCH (b:Asset)
+                WHERE coalesce(b.graph_key, b.id) = $target
+                  AND b.organization_id = $organization_id
                 MATCH (a)-[r:{relationship}]->(b)
                 WITH collect(r) AS relationships
                 FOREACH (rel IN relationships | DELETE rel)
@@ -922,14 +938,6 @@ def get_attack_paths(current_user: dict = Depends(get_current_user)):
             raise HTTPException(status_code=403, detail="Your account is not assigned to an organization.")
         data = graph_data(organization_id)
         return analyze_graph_snapshot(data["nodes"], data["edges"])
-    except HTTPException:
-        raise
-    except HTTPException:
-        raise
-    except HTTPException:
-        raise
-    except HTTPException:
-        raise
     except HTTPException:
         raise
     except Exception as exc:

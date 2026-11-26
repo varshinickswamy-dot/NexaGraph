@@ -15,6 +15,7 @@ type EventSummary = {
   medium?: number;
   low?: number;
   last_24_hours?: number;
+  event_types?: { event_type?: string; count?: number }[];
 };
 type GraphData = { nodes?: unknown[]; edges?: unknown[] };
 type Finding = { severity?: string; status?: string };
@@ -158,6 +159,23 @@ export default function SOCOverview({ organizationId }: Props) {
             <div><span className="soc-severity high">High security events · all time</span><strong>{highEvents}</strong></div>
           </div>
           <p className="soc-footnote">Counts are sourced from existing module APIs; the same underlying issue may appear in more than one category.</p>
+        </article>
+        <article className="soc-panel">
+          <div className="soc-panel-title"><h3>Security event types</h3><span>All recorded events</span></div>
+          {events?.event_types?.length ? (
+            <div className="soc-event-types">
+              {events.event_types.slice(0, 5).map((item) => {
+                const count = Number(item.count) || 0;
+                const maximum = Math.max(...events.event_types!.map((entry) => Number(entry.count) || 0), 1);
+                return (
+                  <div className="soc-event-type" key={item.event_type || "unknown"}>
+                    <div><span>{(item.event_type || "Unknown").replaceAll("_", " ")}</span><strong>{count}</strong></div>
+                    <div className="soc-event-track"><span style={{ width: `${Math.max(0, Math.min(100, (count / maximum) * 100))}%` }} /></div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : <p className="soc-footnote">No event-type breakdown is available yet.</p>}
         </article>
         <article className="soc-panel">
           <div className="soc-panel-title"><h3>Workspace health</h3><span>Live service checks</span></div>

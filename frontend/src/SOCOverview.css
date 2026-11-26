@@ -5,3 +5,14 @@
 .soc-lower-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}.soc-panel{min-width:0;padding:14px;border:1px solid var(--border,#293953);border-radius:10px;background:var(--background,#0b1020)}.soc-panel-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}.soc-panel-title h3{margin:0;font-size:12px}.soc-panel-title>span{color:var(--muted,#aab5c8);font-size:9px}.soc-signal-list,.soc-health-list{display:grid;gap:9px}.soc-signal-list>div,.soc-health-list>div{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px}.soc-signal-list strong{font-size:12px}.soc-severity{display:flex;align-items:center;gap:7px}.soc-severity:before{content:"";width:7px;height:7px;border-radius:50%;background:#94a3b8}.soc-severity.critical:before{background:#ef6464}.soc-severity.high:before{background:#e9a15d}.soc-health-list span{color:var(--muted,#aab5c8)}.soc-health-list b{font-size:9px}.soc-health-list b.ok{color:#35c98a}.soc-health-list b.unknown{color:#e9a15d}.soc-footnote,.soc-warning{margin:12px 0 0;color:var(--muted,#aab5c8);font-size:9px;line-height:1.5}.soc-warning{padding:9px 11px;border:1px solid rgba(233,161,93,.3);border-radius:8px;color:#e9b477}
 @media(max-width:720px){.soc-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.soc-lower-grid{grid-template-columns:1fr}.soc-overview{padding:14px}}
 @media(max-width:420px){.soc-heading{flex-direction:column}.soc-heading button{align-self:flex-start}.soc-kpi{padding:11px}.soc-kpi strong{font-size:22px}}
+
+
+/* SOC event-type insight bars */
+.soc-event-types{display:grid;gap:12px}
+.soc-event-type{display:grid;gap:6px;min-width:0}
+.soc-event-type>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:10px}
+.soc-event-type>div:first-child span{color:var(--muted,#aab5c8);overflow-wrap:anywhere;text-transform:capitalize}
+.soc-event-type>div:first-child strong{font-size:11px}
+.soc-event-track{height:7px;overflow:hidden;border-radius:99px;background:rgba(148,163,184,.16)}
+.soc-event-track>span{display:block;height:100%;border-radius:inherit;background:var(--accent,#d4af62);transition:width .25s ease}
+@media(max-width:720px){.soc-event-types{gap:10px}}

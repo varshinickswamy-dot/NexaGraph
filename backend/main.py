@@ -5,14 +5,14 @@ import os
 import re
 from pathlib import Path
 from backend.vulnerability_routes import router as vulnerability_router
-from backend.auth_routes import router as auth_router
+from backend.auth_routes import router as auth_router, get_current_user, require_roles
 from backend.incident_routes import router as incident_router
 from backend.ml.api import router as ml_router
 
 from backend.intelligence_routes import router as intelligence_router
 from backend.security_event_routes import router as security_event_router
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from neo4j import GraphDatabase
 from pydantic import BaseModel, Field
@@ -290,7 +290,7 @@ def database_health():
 
 
 @app.get("/graph")
-def get_graph():
+def get_graph(current_user: dict = Depends(get_current_user)):
     try:
         return graph_data()
     except Exception as exc:
@@ -301,7 +301,7 @@ def get_graph():
 
 
 @app.post("/assets", status_code=201)
-def add_asset(asset: AssetInput):
+def add_asset(asset: AssetInput, current_user: dict = Depends(require_roles("SUPER_ADMIN", "ORG_ADMIN", "SECURITY_ANALYST"))):
     asset_id = asset.id.strip()
     if not asset_id:
         raise HTTPException(400, "Asset ID cannot be blank.")
@@ -370,7 +370,7 @@ def add_asset(asset: AssetInput):
 
 
 @app.post("/connections", status_code=201)
-def add_connection(connection: ConnectionInput):
+def add_connection(connection: ConnectionInput, current_user: dict = Depends(require_roles("SUPER_ADMIN", "ORG_ADMIN", "SECURITY_ANALYST"))):
     source = connection.source.strip()
     target = connection.target.strip()
     relationship = connection.relationship.strip().upper()
@@ -439,7 +439,7 @@ def add_connection(connection: ConnectionInput):
 
 # Update an existing asset
 @app.put("/assets/{asset_id}")
-def update_asset(asset_id: str, asset: AssetInput):
+def update_asset(asset_id: str, asset: AssetInput, current_user: dict = Depends(require_roles("SUPER_ADMIN", "ORG_ADMIN", "SECURITY_ANALYST"))):
     if asset.id.strip() != asset_id:
         raise HTTPException(
             status_code=400,
@@ -506,7 +506,7 @@ def update_asset(asset_id: str, asset: AssetInput):
 
 # Delete an asset and its connected relationships
 @app.delete("/assets/{asset_id}")
-def delete_asset(asset_id: str):
+def delete_asset(asset_id: str, current_user: dict = Depends(require_roles("SUPER_ADMIN", "ORG_ADMIN"))):
     try:
         if driver is None:
             ensure_fallback_graph()
@@ -555,7 +555,7 @@ class DeleteConnectionInput(BaseModel):
 
 
 @app.delete("/connections")
-def delete_connection(connection: DeleteConnectionInput):
+def delete_connection(connection: DeleteConnectionInput, current_user: dict = Depends(require_roles("SUPER_ADMIN", "ORG_ADMIN"))):
     import re
 
     relationship = connection.relationship.strip().upper()
@@ -854,7 +854,7 @@ def analyze_graph_snapshot(nodes, edges, max_depth=MAX_PATH_DEPTH, max_paths=MAX
 
 
 @app.get("/attack-paths")
-def get_attack_paths():
+def get_attack_paths(current_user: dict = Depends(get_current_user)):
     """Find directed paths from exposed/compromised assets to critical assets."""
     try:
         data = graph_data()
@@ -876,7 +876,7 @@ class RemediationSimulationInput(BaseModel):
 
 
 @app.post("/simulate-remediation")
-def simulate_remediation(request: RemediationSimulationInput):
+def simulate_remediation(request: RemediationSimulationInput, current_user: dict = Depends(get_current_user)):
     """
     Simulate a remediation action on a temporary graph snapshot.
     Never changes Neo4j.

@@ -1,6 +1,8 @@
 from backend.network_routes import router as network_router
 from contextlib import asynccontextmanager
 import csv
+import json
+import logging
 import os
 import re
 from pathlib import Path
@@ -13,10 +15,11 @@ from backend.intelligence_routes import router as intelligence_router
 from backend.security_event_routes import router as security_event_router
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException
+from sqlalchemy import text
 from fastapi.middleware.cors import CORSMiddleware
 from neo4j import GraphDatabase
 from pydantic import BaseModel, Field
-from backend.database import check_database_connection
+from backend.database import check_database_connection, engine
 
 load_dotenv()
 
@@ -24,10 +27,43 @@ NEO4J_URI = os.getenv("NEO4J_URI")
 NEO4J_USER = os.getenv("NEO4J_USER")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 
+logger = logging.getLogger(__name__)
 driver = None
 GRAPH_STATE = {"nodes": [], "edges": []}
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT_DIR / "data"
+
+
+def record_audit_event(current_user: dict, action: str, entity_type: str, entity_id: str, details: dict | None = None):
+    """Best-effort audit trail for graph mutations; never expose audit failures to clients."""
+    organization_id = current_user.get("organization_id")
+    user_id = current_user.get("id")
+    if not organization_id or not user_id:
+        return
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text("""
+                    INSERT INTO audit_logs (
+                        organization_id, user_id, action,
+                        entity_type, entity_id, details
+                    )
+                    VALUES (
+                        :organization_id, :user_id, :action,
+                        :entity_type, :entity_id, CAST(:details AS JSONB)
+                    )
+                """),
+                {
+                    "organization_id": organization_id,
+                    "user_id": user_id,
+                    "action": action,
+                    "entity_type": entity_type,
+                    "entity_id": str(entity_id),
+                    "details": json.dumps(details or {}),
+                },
+            )
+    except Exception:
+        logger.exception("Audit event could not be persisted: %s", action)
 
 
 def load_fallback_graph():
@@ -356,7 +392,8 @@ def add_asset(asset: AssetInput, current_user: dict = Depends(require_roles("SUP
                 "compromised": asset.compromised,
                 "organization_id": organization_id,
             })
-            return {"message": "Asset added successfully.", "graph": graph_data(organization_id)}
+            record_audit_event(current_user, "ASSET_CREATED", "ASSET", asset_id, {"criticality": asset.criticality, "type": asset.type})
+        return {"message": "Asset added successfully.", "graph": graph_data(organization_id)}
 
         with driver.session() as session:
             result = session.run("""
@@ -474,6 +511,7 @@ def add_connection(connection: ConnectionInput, current_user: dict = Depends(req
                 }}]->(b)
             """, source=source, target=target, protocol=connection.protocol.strip(), organization_id=organization_id)
 
+        record_audit_event(current_user, "NETWORK_CONNECTION_CREATED", "NETWORK_CONNECTION", f"{source}->{target}", {"relationship": relationship, "protocol": connection.protocol.strip()})
         return {
             "message": "Connection added successfully.",
             "graph": graph_data(organization_id),
@@ -544,6 +582,7 @@ def update_asset(asset_id: str, asset: AssetInput, current_user: dict = Depends(
             if not result:
                 raise HTTPException(status_code=404, detail="Asset not found.")
 
+        record_audit_event(current_user, "ASSET_UPDATED", "ASSET", asset_id, {"criticality": asset.criticality, "exposed": asset.exposed, "compromised": asset.compromised})
         return {
             "message": "Asset updated successfully.",
             "graph": graph_data(organization_id)
@@ -597,6 +636,7 @@ def delete_asset(asset_id: str, current_user: dict = Depends(require_roles("SUPE
             if not result or result["deleted"] == 0:
                 raise HTTPException(status_code=404, detail="Asset not found.")
 
+        record_audit_event(current_user, "ASSET_DELETED", "ASSET", asset_id)
         return {
             "message": "Asset and its connections deleted successfully.",
             "graph": graph_data(organization_id)
@@ -678,6 +718,7 @@ def delete_connection(connection: DeleteConnectionInput, current_user: dict = De
                     detail="Connection not found."
                 )
 
+        record_audit_event(current_user, "NETWORK_CONNECTION_DELETED", "NETWORK_CONNECTION", f"{connection.source}->{connection.target}", {"relationship": relationship})
         return {
             "message": "Connection deleted successfully.",
             "graph": graph_data(organization_id)

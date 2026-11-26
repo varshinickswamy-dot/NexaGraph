@@ -286,35 +286,6 @@ def graph_data(organization_id: str | None = None):
             "edges": edges_result["edges"] if edges_result else [],
         }
 
-    with driver.session() as session:
-        nodes_result = session.run("""
-            MATCH (a:Asset)
-            RETURN collect({
-                id: a.id,
-                name: a.name,
-                type: a.type,
-                ip: a.ip,
-                criticality: a.criticality,
-                exposed: a.exposed,
-                compromised: a.compromised
-            }) AS nodes
-        """).single()
-
-        edges_result = session.run("""
-            MATCH (a:Asset)-[r]->(b:Asset)
-            RETURN collect({
-                source: a.id,
-                target: b.id,
-                relationship: type(r),
-                protocol: r.protocol
-            }) AS edges
-        """).single()
-
-        return {
-            "nodes": nodes_result["nodes"],
-            "edges": edges_result["edges"],
-        }
-
 
 @app.get("/")
 def home():

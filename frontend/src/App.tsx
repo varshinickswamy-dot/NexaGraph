@@ -1004,6 +1004,15 @@ function App() {
         >
           <span aria-hidden="true">{sidebarOpen ? "×" : "☰"}</span>
         </button>
+        <button
+          className="nx-floating-search"
+          type="button"
+          onClick={() => { setCommandQuery(""); setCommandOpen(true); }}
+          aria-label="Open quick navigation"
+          title="Quick navigation (Ctrl+K)"
+        >
+          <span aria-hidden="true">⌕</span>
+        </button>
         <div className="nx-content">
           <main className="main">
         <section className="stats" id="overview">

@@ -72,7 +72,7 @@ def mock_graph(monkeypatch):
     monkeypatch.setattr(
         main,
         "graph_data",
-        lambda: {"nodes": nodes, "edges": edges},
+        lambda organization_id=None: {"nodes": nodes, "edges": edges},
     )
 
     return original_nodes, original_edges
@@ -201,7 +201,7 @@ def test_simulation_does_not_mutate_original_graph(
 
     assert response.status_code == 200
 
-    current_graph = main.graph_data()
+    current_graph = main.graph_data("ci-test-organization")
 
     assert current_graph["nodes"] == original_nodes
     assert current_graph["edges"] == original_edges

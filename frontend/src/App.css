@@ -2498,3 +2498,22 @@ button,
  .nx-command-dialog{padding:15px;max-height:76vh}
  .nx-command-heading h2{font-size:16px}
 }
+
+
+/* Keep the drawer controls clear of the NexaGraph brand on small screens. */
+.nx-floating-menu.is-sidebar-open{
+  left: auto;
+  right: max(16px, calc(100vw - min(285px, 84vw) + 16px));
+  z-index: 1004;
+}
+.nx-floating-search.is-sidebar-open{
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+@media(max-width:900px){
+  .nx-floating-menu.is-sidebar-open{right:calc(16vw + 16px);left:auto;}
+}
+@media(max-width:520px){
+  .nx-floating-menu.is-sidebar-open{right:calc(16vw + 12px);}
+}

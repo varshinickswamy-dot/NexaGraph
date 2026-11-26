@@ -47,9 +47,9 @@ export default function SOCOverview({ organizationId }: Props) {
 
     if (organizationId) {
       jobs.push(getJson<IncidentSummary>(`/incidents/summary?organization_id=${encodeURIComponent(organizationId)}`)
-        .then(setIncident).catch(() => nextErrors.push("Incident summary unavailable")));
+        .then(setIncident).catch(() => { nextErrors.push("Incident summary unavailable"); }));
       jobs.push(getJson<EventSummary>(`/security-events/summary?organization_id=${encodeURIComponent(organizationId)}`)
-        .then(setEvents).catch(() => nextErrors.push("Security-event summary unavailable")));
+        .then(setEvents).catch(() => { nextErrors.push("Security-event summary unavailable"); }));
     } else {
       setIncident(null);
       setEvents(null);
@@ -57,7 +57,7 @@ export default function SOCOverview({ organizationId }: Props) {
     }
 
     jobs.push(getJson<GraphData>("/graph")
-      .then(setGraph).catch(() => nextErrors.push("Asset graph unavailable")));
+      .then(setGraph).catch(() => { nextErrors.push("Asset graph unavailable"); }));
     jobs.push(getJson<{success?: boolean; findings?: Finding[]}>("/vulnerabilities?limit=500&offset=0")
       .then((data) => setFindings(Array.isArray(data.findings) ? data.findings : []))
       .catch(() => { nextErrors.push("Vulnerability summary unavailable"); }));

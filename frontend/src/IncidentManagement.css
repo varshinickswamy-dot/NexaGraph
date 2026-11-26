@@ -423,3 +423,83 @@
 :root[data-theme="light"] .incident-person strong {
   color: #172B4D;
 }
+
+/* Incident investigation timeline */
+.incident-timeline-hint {
+  margin: -4px 0 12px;
+  color: var(--nx-muted, #aab5c8);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.incident-timeline {
+  position: relative;
+  display: grid;
+  gap: 0;
+  margin: 12px 0 4px;
+  padding-left: 5px;
+}
+.incident-timeline-entry {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 10px;
+  padding: 0 0 18px;
+}
+.incident-timeline-entry:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 13px;
+  bottom: 0;
+  width: 2px;
+  background: var(--nx-border, #35445c);
+}
+.incident-timeline-marker {
+  z-index: 1;
+  width: 12px;
+  height: 12px;
+  margin-top: 3px;
+  border: 2px solid var(--nx-accent, #b8954a);
+  border-radius: 50%;
+  background: var(--nx-surface, #192641);
+}
+.incident-timeline-entry.created .incident-timeline-marker {
+  border-color: #43c49a;
+}
+.incident-timeline-entry.updated .incident-timeline-marker {
+  border-color: #e8bd63;
+}
+.incident-timeline-entry > div {
+  min-width: 0;
+  padding: 11px 13px;
+  border: 1px solid var(--nx-border, #35445c);
+  border-radius: 9px;
+  background: var(--nx-card, #111c32);
+}
+.incident-timeline-entry strong {
+  display: block;
+  font-size: 13px;
+}
+.incident-timeline-entry p {
+  margin: 6px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.incident-timeline-entry small {
+  color: var(--nx-muted, #aab5c8);
+  font-size: 11px;
+}
+:root[data-theme="light"] .incident-timeline-entry > div {
+  background: #FAFAFC;
+  border-color: #E2E5EB;
+}
+:root[data-theme="light"] .incident-timeline-entry strong {
+  color: #172B4D;
+}
+:root[data-theme="light"] .incident-timeline-entry p,
+:root[data-theme="light"] .incident-timeline-entry small,
+:root[data-theme="light"] .incident-timeline-hint {
+  color: #687386;
+}

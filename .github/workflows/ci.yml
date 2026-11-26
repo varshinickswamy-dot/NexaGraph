@@ -40,6 +40,25 @@ jobs:
       - name: Compile backend modules
         run: python -m compileall -q backend
 
+  backend-tests:
+    name: Backend unit tests
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql+psycopg://ci:ci@127.0.0.1:5432/nexagraph
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install backend dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Run graph and remediation tests
+        run: python -m pytest backend/test_attack_paths.py backend/test_remediation_api.py -q
+
   frontend-quality:
     name: Frontend TypeScript check and production build
     runs-on: ubuntu-latest

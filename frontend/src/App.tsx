@@ -125,6 +125,7 @@ async function apiRequest(path: string, options: RequestInit = {}) {
 type AppTheme = "dark" | "light";
 
 function App() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [theme, setTheme] = useState<AppTheme>(() => {
     const saved = window.localStorage.getItem("nexagraph-theme");
     return saved === "light" ? "light" : "dark";
@@ -942,8 +943,44 @@ function App() {
         </div>
       </header>
 
-      <main className="main">
-        <section className="stats">
+      <div className="nx-app-shell">
+        <aside className={`nx-sidebar ${sidebarOpen ? "is-open" : ""}`} aria-label="Main navigation">
+          <div className="nx-sidebar-brand">
+            <span className="nx-brand-mark">N</span>
+            <div><strong>NexaGraph</strong><small>Security workspace</small></div>
+          </div>
+          <div className="nx-sidebar-section">WORKSPACE</div>
+          <nav className="nx-sidebar-nav">
+            {[
+              { id: "overview", icon: "▦", label: "Overview" },
+              { id: "ml-detection", icon: "◈", label: "AI Threat Detection" },
+              { id: "network-topology", icon: "⌘", label: "Network Topology" },
+              { id: "vulnerability-intelligence", icon: "◇", label: "Vulnerability Intel" },
+              { id: "incidents", icon: "⚑", label: "Incident Management" },
+              { id: "security-events", icon: "◉", label: "Security Events" },
+              { id: "security-intelligence", icon: "✧", label: "Threat Intelligence" },
+              { id: "asset-management", icon: "▣", label: "Asset Management" },
+              ...((authUser.role === "ORG_ADMIN" || authUser.role === "SUPER_ADMIN")
+                ? [{ id: "team-management", icon: "♙", label: "Team Management" }]
+                : []),
+            ].map((item) => (
+              <a key={item.id} href={`#${item.id}`} onClick={() => setSidebarOpen(false)}>
+                <span aria-hidden="true">{item.icon}</span>{item.label}
+              </a>
+            ))}
+          </nav>
+          <div className="nx-sidebar-footer">
+            <span className="nx-sidebar-live-dot" /> Secure workspace
+            <small>Signed in as {authUser.role.replaceAll("_", " ")}</small>
+          </div>
+        </aside>
+        {sidebarOpen && <button className="nx-sidebar-backdrop" aria-label="Close navigation" onClick={() => setSidebarOpen(false)} />}
+        <div className="nx-content">
+          <button className="nx-mobile-menu" type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-label="Toggle navigation">
+            <span aria-hidden="true">☰</span> {sidebarOpen ? "Close menu" : "Menu"}
+          </button>
+          <main className="main">
+        <section className="stats" id="overview">
           <div className="stat-card">
             <span>Assets</span>
             <strong>{graph?.nodes.length ?? 0}</strong>
@@ -961,27 +998,27 @@ function App() {
             <strong>{compromisedCount}</strong>
           </div>
         </section>
-        <MLDetectionDashboard />
+        <section id="ml-detection" className="nx-nav-section"><MLDetectionDashboard /></section>
 
         {/* Organization team management: visible only to authorized administrators */}
         {(authUser.role === "ORG_ADMIN" || authUser.role === "SUPER_ADMIN") && (
-          <TeamManagement />
+          <section id="team-management" className="nx-nav-section"><TeamManagement /></section>
         )}
 
         {/* Live PostgreSQL-backed network topology */}
-        <NetworkTopology theme={theme} />
+        <section id="network-topology" className="nx-nav-section"><NetworkTopology theme={theme} /></section>
 
         {/* PostgreSQL-backed vulnerability intelligence */}
-        <VulnerabilityIntelligence />
+        <section id="vulnerability-intelligence" className="nx-nav-section"><VulnerabilityIntelligence /></section>
 
-        <IncidentManagement />
-        <SecurityEventMonitoring />
-        <SecurityIntelligence />
+        <section id="incidents" className="nx-nav-section"><IncidentManagement /></section>
+        <section id="security-events" className="nx-nav-section"><SecurityEventMonitoring /></section>
+        <section id="security-intelligence" className="nx-nav-section"><SecurityIntelligence /></section>
 
         {error && <div className="error">{error}</div>}
         {loading && <div className="loading">Loading enterprise graph...</div>}
 
-        <section className="management-panel">
+        <section className="management-panel nx-nav-section" id="asset-management">
           <h2>Manage Enterprise Graph</h2>
           <p>Add assets and define relationships between existing assets.</p>
 
@@ -1832,7 +1869,9 @@ function App() {
             )}
           </aside>
         </section>
-      </main>
+          </main>
+        </div>
+      </div>
     </div>
   );
 }

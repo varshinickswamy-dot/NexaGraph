@@ -83,6 +83,7 @@ export default function SOCOverview({ organizationId }: Props) {
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState<string[]>([]);
   const [alertFilter, setAlertFilter] = useState<"ALL" | "CRITICAL" | "HIGH">("ALL");
+  const [expandedAlertIds, setExpandedAlertIds] = useState<string[]>([]);
   const [readAlertIds, setReadAlertIds] = useState<string[]>(() => {
     try {
       const stored = window.localStorage.getItem("nexagraph:soc:read-alerts");
@@ -208,7 +209,7 @@ export default function SOCOverview({ organizationId }: Props) {
   const highEvents = Number(events?.high) || 0;
   const priorityCount = criticalFindings + criticalIncidents + criticalEvents + highIncidents + highEvents;
   const alerts = useMemo(() => {
-    const generated: { id: string; severity: "CRITICAL" | "HIGH"; title: string; detail: string; time: string; target: string }[] = [];
+    const generated: { id: string; severity: "CRITICAL" | "HIGH"; title: string; detail: string; time: string; target: string; evidence: string[] }[] = [];
     recentEvents.forEach((event) => {
       const severity = String(event.severity || "").toUpperCase();
       if (severity !== "CRITICAL" && severity !== "HIGH") return;
@@ -223,6 +224,12 @@ export default function SOCOverview({ organizationId }: Props) {
           event.destination_ip ? `Destination: ${event.destination_ip}` : "",
         ].filter(Boolean).join(" · "),
         time: event.occurred_at || event.created_at || "", target: "security-events",
+        evidence: [
+          event.id ? `Event ID: ${event.id}` : "",
+          event.source_ip ? `Source IP: ${event.source_ip}` : "",
+          event.destination_ip ? `Destination IP: ${event.destination_ip}` : "",
+          event.occurred_at || event.created_at ? `Recorded: ${new Date(event.occurred_at || event.created_at || "").toLocaleString()}` : "",
+        ].filter(Boolean),
       });
     });
     activeFindings.forEach((finding) => {
@@ -234,6 +241,13 @@ export default function SOCOverview({ organizationId }: Props) {
         id, severity, title: `${severity} vulnerability`,
         detail: `${finding.asset_name || "Affected asset"}${finding.cvss_score != null ? ` · CVSS ${Number(finding.cvss_score).toFixed(1)}` : ""}`,
         time: "", target: "vulnerability-intelligence",
+        evidence: [
+          finding.finding_id ? `Finding ID: ${finding.finding_id}` : "",
+          finding.ip_address ? `Asset IP: ${finding.ip_address}` : "",
+          finding.asset_criticality ? `Asset criticality: ${finding.asset_criticality}` : "",
+          finding.cvss_score != null ? `CVSS score: ${Number(finding.cvss_score).toFixed(1)}` : "",
+          finding.status ? `Status: ${finding.status}` : "",
+        ].filter(Boolean),
       });
     });
     return generated.sort((a, b) => (a.severity === b.severity ? (b.time || "").localeCompare(a.time || "") : a.severity === "CRITICAL" ? -1 : 1)).slice(0, 100);
@@ -324,9 +338,11 @@ export default function SOCOverview({ organizationId }: Props) {
                   <div className="soc-alert-copy">
                     <strong>{alert.title}</strong><span>{alert.detail}</span>
                     {alert.time && <small>{new Date(alert.time).toLocaleString()}</small>}
+                    {expandedAlertIds.includes(alert.id) && <div className="soc-alert-evidence" aria-label="Alert evidence">{alert.evidence.length ? alert.evidence.map((item) => <small key={item}>{item}</small>) : <small>No additional evidence is available for this alert.</small>}</div>}
                   </div>
                   <div className="soc-alert-actions">
                     <button type="button" onClick={() => document.getElementById(alert.target)?.scrollIntoView({ behavior: "smooth", block: "start" })}>Open</button>
+                    <button type="button" onClick={() => setExpandedAlertIds((current) => current.includes(alert.id) ? current.filter((id) => id !== alert.id) : [...current, alert.id])} aria-expanded={expandedAlertIds.includes(alert.id)}>{expandedAlertIds.includes(alert.id) ? "Hide details" : "Details"}</button>
                     <button type="button" onClick={() => markAlertRead(alert.id)} disabled={isRead}>{isRead ? "Read" : "Mark read"}</button>
                   </div>
                 </div>

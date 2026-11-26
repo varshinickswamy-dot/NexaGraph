@@ -2400,3 +2400,43 @@ button,
  .nx-mobile-menu{margin:10px 10px 0}
  .nx-content>.main{padding-top:10px}
 }
+
+
+/* Persistent navigation launcher: available at every scroll position. */
+.nx-app-shell{display:block;min-height:calc(100vh - 80px)}
+.nx-sidebar{
+  position:fixed;top:0;left:0;width:min(285px,84vw);height:100vh;height:100dvh;
+  min-height:100vh;min-height:100dvh;overflow-y:auto;
+  transform:translateX(-105%);transition:transform .22s ease;
+  box-shadow:12px 0 32px rgba(0,0,0,.28);z-index:1002;
+}
+.nx-sidebar.is-open{transform:translateX(0)}
+.nx-sidebar-backdrop{
+  display:block;position:fixed;inset:0;z-index:1001;
+  border:0;background:rgba(2,6,16,.64);cursor:pointer;
+}
+.nx-floating-menu{
+  position:fixed;top:16px;left:16px;z-index:1003;
+  display:grid;place-items:center;width:46px;height:46px;
+  border:1px solid rgba(212,175,98,.55);border-radius:12px;
+  background:rgba(17,28,50,.96);color:#f5f2ea;
+  box-shadow:0 5px 20px rgba(0,0,0,.28);
+  font-size:25px;line-height:1;cursor:pointer;
+  backdrop-filter:blur(12px);
+  transition:background .18s ease,border-color .18s ease,transform .18s ease;
+}
+.nx-floating-menu:hover{background:#263653;border-color:#d4af62;transform:translateY(-1px)}
+.nx-floating-menu:focus-visible{outline:3px solid #67e8f9;outline-offset:3px}
+.nx-content{min-width:0}
+.nx-content>.main{min-width:0}
+.nx-nav-section{scroll-margin-top:18px}
+@media(max-width:900px){
+ .nx-app-shell{display:block}
+ .nx-sidebar{width:min(285px,84vw)}
+ .nx-floating-menu{top:12px;left:12px;width:44px;height:44px}
+ .nx-content>.main{padding-top:14px}
+}
+@media(max-width:520px){
+ .nx-floating-menu{top:10px;left:10px;width:42px;height:42px}
+ .nx-content>.main{padding-top:10px}
+}

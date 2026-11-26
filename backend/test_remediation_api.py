@@ -96,7 +96,7 @@ def test_remove_connection_success(mock_graph):
     assert data["database_modified"] is False
     assert data["before"]["total_paths"] == 2
     assert data["after"]["total_paths"] == 0
-    assert data["paths_eliminated"] == 1
+    assert data["paths_eliminated"] == 2
 
 
 def test_isolate_asset_success(mock_graph):

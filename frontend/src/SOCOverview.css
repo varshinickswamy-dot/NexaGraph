@@ -91,3 +91,10 @@
  .soc-alert-copy strong{font-size:9px}
  .soc-alert-list{max-height:380px}
 }
+
+
+/* Expandable alert evidence */
+.soc-alert-evidence{display:grid;gap:4px;margin-top:7px;padding:8px;border:1px solid var(--border,#293953);border-radius:7px;background:rgba(148,163,184,.055)}
+.soc-alert-evidence small{font-size:9px;color:var(--muted,#aab5c8);overflow-wrap:anywhere;line-height:1.45}
+.soc-alert-actions button:hover,.soc-text-button:hover{border-color:var(--accent,#d4af62);color:var(--accent,#d4af62)}
+.soc-alert-actions button:focus-visible,.soc-text-button:focus-visible{outline:2px solid var(--accent,#d4af62);outline-offset:2px}

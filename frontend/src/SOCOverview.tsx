@@ -18,6 +18,10 @@ type EventSummary = {
 };
 type GraphData = { nodes?: unknown[]; edges?: unknown[] };
 type Finding = { severity?: string; status?: string };
+type VulnerabilitySummary = {
+  total_findings?: number;
+  by_status?: Record<string, number>;
+};
 
 async function getJson<T>(path: string): Promise<T> {
   const response = await authenticatedFetch(path);
@@ -48,6 +52,7 @@ export default function SOCOverview({ organizationId }: Props) {
   const [events, setEvents] = useState<EventSummary | null>(null);
   const [graph, setGraph] = useState<GraphData | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
+  const [vulnerabilitySummary, setVulnerabilitySummary] = useState<VulnerabilitySummary | null>(null);
   const [mlAvailable, setMlAvailable] = useState<boolean | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
@@ -73,7 +78,10 @@ export default function SOCOverview({ organizationId }: Props) {
       .then(setGraph).catch(() => { nextErrors.push("Asset graph unavailable"); }));
     jobs.push(getJson<{success?: boolean; findings?: Finding[]}>("/vulnerabilities?limit=500&offset=0")
       .then((data) => setFindings(Array.isArray(data.findings) ? data.findings : []))
-      .catch(() => { nextErrors.push("Vulnerability summary unavailable"); }));
+      .catch(() => { nextErrors.push("Vulnerability findings unavailable"); }));
+    jobs.push(getJson<VulnerabilitySummary>("/vulnerabilities/summary")
+      .then(setVulnerabilitySummary)
+      .catch(() => { setVulnerabilitySummary(null); nextErrors.push("Vulnerability summary unavailable"); }));
     jobs.push(fetch(`${API_BASE_URL}/api/ml/status`)
       .then(async (response) => {
         if (!response.ok) throw new Error("ML status unavailable");
@@ -97,6 +105,9 @@ export default function SOCOverview({ organizationId }: Props) {
     ["OPEN", "IN_PROGRESS"].includes(String(item.status).toUpperCase())
   ), [findings]);
   const criticalFindings = activeFindings.filter((item) => String(item.severity).toUpperCase() === "CRITICAL").length;
+  const activeVulnerabilityCount = vulnerabilitySummary?.by_status
+    ? (Number(vulnerabilitySummary.by_status.OPEN) || 0) + (Number(vulnerabilitySummary.by_status.IN_PROGRESS) || 0)
+    : activeFindings.length;
   const criticalIncidents = incident?.breakdown
     ? countActiveIncidentSeverity(incident.breakdown, "CRITICAL")
     : 0;
@@ -133,7 +144,7 @@ export default function SOCOverview({ organizationId }: Props) {
         <article className="soc-kpi"><span>Registered assets</span><strong>{graph?.nodes?.length ?? "—"}</strong><small>From network graph</small></article>
         <article className="soc-kpi"><span>Active incidents</span><strong>{activeIncidentCount}</strong><small>{criticalIncidents} critical · {highIncidents} high (active)</small></article>
         <article className="soc-kpi"><span>Security events · 24h</span><strong>{events?.last_24_hours ?? "—"}</strong><small>{events?.total ?? 0} recorded events · all time</small></article>
-        <article className="soc-kpi soc-kpi-risk"><span>Active vulnerabilities</span><strong>{activeFindings.length}</strong><small>{criticalFindings} critical findings</small></article>
+        <article className="soc-kpi soc-kpi-risk"><span>Active vulnerabilities</span><strong>{activeVulnerabilityCount}</strong><small>{criticalFindings} critical findings in latest 500 records</small></article>
       </div>
 
       <div className="soc-lower-grid">
@@ -143,8 +154,8 @@ export default function SOCOverview({ organizationId }: Props) {
             <div><span className="soc-severity critical">Critical vulnerabilities</span><strong>{criticalFindings}</strong></div>
             <div><span className="soc-severity critical">Critical incidents</span><strong>{criticalIncidents}</strong></div>
             <div><span className="soc-severity high">High incidents</span><strong>{highIncidents}</strong></div>
-            <div><span className="soc-severity critical">Critical security events</span><strong>{criticalEvents}</strong></div>
-            <div><span className="soc-severity high">High security events</span><strong>{highEvents}</strong></div>
+            <div><span className="soc-severity critical">Critical security events · all time</span><strong>{criticalEvents}</strong></div>
+            <div><span className="soc-severity high">High security events · all time</span><strong>{highEvents}</strong></div>
           </div>
           <p className="soc-footnote">Counts are sourced from existing module APIs; the same underlying issue may appear in more than one category.</p>
         </article>

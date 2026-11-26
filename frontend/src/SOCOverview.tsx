@@ -25,9 +25,22 @@ async function getJson<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function countSeverity(rows: { severity?: string; count?: number }[], severity: string) {
-  return rows.filter((row) => row.severity?.toUpperCase() === severity)
+function isActiveStatus(status?: string) {
+  return !["RESOLVED", "CLOSED"].includes(String(status || "").toUpperCase());
+}
+
+function countActiveIncidents(rows: { status?: string; count?: number }[]) {
+  return rows.filter((row) => isActiveStatus(row.status))
     .reduce((total, row) => total + (Number(row.count) || 0), 0);
+}
+
+function countActiveIncidentSeverity(
+  rows: { status?: string; severity?: string; count?: number }[],
+  severity: string,
+) {
+  return rows.filter((row) =>
+    isActiveStatus(row.status) && String(row.severity || "").toUpperCase() === severity
+  ).reduce((total, row) => total + (Number(row.count) || 0), 0);
 }
 
 export default function SOCOverview({ organizationId }: Props) {
@@ -85,11 +98,14 @@ export default function SOCOverview({ organizationId }: Props) {
   ), [findings]);
   const criticalFindings = activeFindings.filter((item) => String(item.severity).toUpperCase() === "CRITICAL").length;
   const criticalIncidents = incident?.breakdown
-    ? countSeverity(incident.breakdown, "CRITICAL")
+    ? countActiveIncidentSeverity(incident.breakdown, "CRITICAL")
     : 0;
   const highIncidents = incident?.breakdown
-    ? countSeverity(incident.breakdown, "HIGH")
+    ? countActiveIncidentSeverity(incident.breakdown, "HIGH")
     : 0;
+  const activeIncidentCount = incident?.breakdown
+    ? countActiveIncidents(incident.breakdown)
+    : incident ? Number(incident.total) || 0 : "—";
   const criticalEvents = Number(events?.critical) || 0;
   const highEvents = Number(events?.high) || 0;
   const priorityCount = criticalFindings + criticalIncidents + criticalEvents + highIncidents + highEvents;
@@ -115,8 +131,8 @@ export default function SOCOverview({ organizationId }: Props) {
 
       <div className="soc-kpi-grid">
         <article className="soc-kpi"><span>Registered assets</span><strong>{graph?.nodes?.length ?? "—"}</strong><small>From network graph</small></article>
-        <article className="soc-kpi"><span>Active incidents</span><strong>{incident ? Math.max(0, Number(incident.total) - (incident.breakdown ?? []).filter((x) => ["RESOLVED", "CLOSED"].includes(String(x.status).toUpperCase())).reduce((n,x)=>n+(Number(x.count)||0),0)) : "—"}</strong><small>{criticalIncidents} critical · {highIncidents} high</small></article>
-        <article className="soc-kpi"><span>Security events · 24h</span><strong>{events?.last_24_hours ?? "—"}</strong><small>{events?.total ?? 0} recorded events</small></article>
+        <article className="soc-kpi"><span>Active incidents</span><strong>{activeIncidentCount}</strong><small>{criticalIncidents} critical · {highIncidents} high (active)</small></article>
+        <article className="soc-kpi"><span>Security events · 24h</span><strong>{events?.last_24_hours ?? "—"}</strong><small>{events?.total ?? 0} recorded events · all time</small></article>
         <article className="soc-kpi soc-kpi-risk"><span>Active vulnerabilities</span><strong>{activeFindings.length}</strong><small>{criticalFindings} critical findings</small></article>
       </div>
 

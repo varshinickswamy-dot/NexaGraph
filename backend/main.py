@@ -393,7 +393,7 @@ def add_asset(asset: AssetInput, current_user: dict = Depends(require_roles("SUP
                 "organization_id": organization_id,
             })
             record_audit_event(current_user, "ASSET_CREATED", "ASSET", asset_id, {"criticality": asset.criticality, "type": asset.type})
-        return {"message": "Asset added successfully.", "graph": graph_data(organization_id)}
+            return {"message": "Asset added successfully.", "graph": graph_data(organization_id)}
 
         with driver.session() as session:
             result = session.run("""
@@ -428,6 +428,7 @@ def add_asset(asset: AssetInput, current_user: dict = Depends(require_roles("SUP
                 "ip": asset.ip.strip(),
             })
 
+        record_audit_event(current_user, "ASSET_CREATED", "ASSET", asset_id, {"criticality": asset.criticality, "type": asset.type})
         return {"message": "Asset added successfully.", "graph": graph_data(organization_id)}
 
     except HTTPException:

@@ -14,6 +14,8 @@ type InvitationResult = {
   invitation_code: string;
   expires_at: string;
   status: "success" | "error";
+  email_sent?: boolean;
+  email_status?: "sent" | "failed";
   message?: string;
 };
 
@@ -143,6 +145,9 @@ export default function TeamManagement() {
             invitation_code: data.invitation_code,
             expires_at: data.expires_at,
             status: "success",
+            email_sent: data.email_sent === true,
+            email_status: data.email_status === "sent" ? "sent" : "failed",
+            message: data.message,
           });
         } catch (err) {
           invitationResults.push({
@@ -386,8 +391,7 @@ export default function TeamManagement() {
             <div>
               <h3>Invitation Results</h3>
               <p>
-                Share each generated code with its intended recipient.
-                Delivery is not automatic yet.
+                Each invitation is saved securely. Email status is shown separately below.
               </p>
             </div>
           </div>
@@ -424,6 +428,17 @@ export default function TeamManagement() {
                 </div>
 
                 {result.status === "success" ? (
+
+                  <div className="invitation-email-status" role="status">
+                    <span className={result.email_sent ? "email-delivery-sent" : "email-delivery-failed"}>
+                      {result.email_sent ? "Email accepted by Resend" : "Email not sent"}
+                    </span>
+                    <small>
+                      {result.email_sent
+                        ? "The email provider accepted the invitation email. Check inbox and spam folders."
+                        : result.message || "The invitation is saved, but email could not be submitted. Check the email service configuration."}
+                    </small>
+                  </div>
 
                   <div className="invitation-code-area">
 

@@ -156,16 +156,16 @@ class AssetInput(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     type: str = Field(min_length=1, max_length=50)
     ip: str = Field(min_length=1, max_length=100)
-    criticality: str
-    exposed: str
-    compromised: str
+    criticality: str = Field(min_length=1, max_length=20)
+    exposed: str = Field(min_length=1, max_length=3)
+    compromised: str = Field(min_length=1, max_length=3)
 
 
 class ConnectionInput(BaseModel):
     source: str = Field(min_length=1, max_length=50)
     target: str = Field(min_length=1, max_length=50)
     relationship: str = Field(min_length=1, max_length=40)
-    protocol: str = Field(default="TCP", max_length=30)
+    protocol: str = Field(default="TCP", min_length=1, max_length=30)
 
 
 def graph_data(organization_id: str | None = None):
@@ -187,7 +187,8 @@ def graph_data(organization_id: str | None = None):
         visible_ids = {node["id"] for node in visible_nodes}
         visible_edges = [
             dict(edge) for edge in GRAPH_STATE["edges"]
-            if edge.get("source") in visible_ids
+            if (organization_id is None or str(edge.get("organization_id")) == str(organization_id))
+            and edge.get("source") in visible_ids
             and edge.get("target") in visible_ids
         ]
         return {"nodes": visible_nodes, "edges": visible_edges}
@@ -612,9 +613,9 @@ def delete_asset(asset_id: str, current_user: dict = Depends(require_roles("SUPE
 
 # Delete connections between two assets for a specified relationship type
 class DeleteConnectionInput(BaseModel):
-    source: str
-    target: str
-    relationship: str
+    source: str = Field(min_length=1, max_length=128)
+    target: str = Field(min_length=1, max_length=128)
+    relationship: str = Field(min_length=1, max_length=40)
 
 
 @app.delete("/connections")
@@ -948,12 +949,14 @@ def get_attack_paths(current_user: dict = Depends(get_current_user)):
 
 class RemediationSimulationInput(BaseModel):
     action_type: str = Field(
-        description="isolate-asset or remove-connection"
+        min_length=1,
+        max_length=30,
+        description="isolate-asset or remove-connection",
     )
-    target_id: str | None = None
-    source_id: str | None = None
-    destination_id: str | None = None
-    relationship: str | None = None
+    target_id: str | None = Field(default=None, max_length=128)
+    source_id: str | None = Field(default=None, max_length=128)
+    destination_id: str | None = Field(default=None, max_length=128)
+    relationship: str | None = Field(default=None, max_length=40)
 
 
 @app.post("/simulate-remediation")

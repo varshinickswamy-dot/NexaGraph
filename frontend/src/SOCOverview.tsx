@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { API_BASE_URL, authenticatedFetch } from "./api";
+import { authenticatedFetch } from "./api";
 import "./SOCOverview.css";
 
 type Props = { organizationId: string | null };

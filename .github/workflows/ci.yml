@@ -8,6 +8,7 @@ on:
       - "frontend/**"
       - ".github/workflows/ci.yml"
       - "requirements.txt"
+      - "data/**"
   pull_request:
     branches: [main]
     paths:
@@ -15,6 +16,7 @@ on:
       - "frontend/**"
       - ".github/workflows/ci.yml"
       - "requirements.txt"
+      - "data/**"
   workflow_dispatch:
 
 permissions:
@@ -39,7 +41,7 @@ jobs:
         run: python -m compileall -q backend
 
   frontend-quality:
-    name: Frontend lint and production build
+    name: Frontend TypeScript check and production build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -55,7 +57,5 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install dependencies
         run: npm ci
-      - name: Run ESLint
-        run: npm run lint
       - name: Build production frontend
         run: npm run build

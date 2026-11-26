@@ -60,7 +60,7 @@ export default function SOCOverview({ organizationId }: Props) {
       .then(setGraph).catch(() => nextErrors.push("Asset graph unavailable")));
     jobs.push(getJson<{success?: boolean; findings?: Finding[]}>("/vulnerabilities?limit=500&offset=0")
       .then((data) => setFindings(Array.isArray(data.findings) ? data.findings : []))
-      .catch(() => nextErrors.push("Vulnerability summary unavailable")));
+      .catch(() => { nextErrors.push("Vulnerability summary unavailable"); }));
     jobs.push(fetch(`${API_BASE_URL}/api/ml/status`)
       .then(async (response) => {
         if (!response.ok) throw new Error("ML status unavailable");

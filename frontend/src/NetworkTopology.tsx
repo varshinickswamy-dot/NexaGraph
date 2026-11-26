@@ -10,6 +10,10 @@ type TopologyNode = {
   ip_address: string | null;
   criticality: string | null;
   environment: string | null;
+  vulnerability_count?: number;
+  active_vulnerability_count?: number;
+  vulnerability_risk_score?: number;
+  vulnerability_risk_level?: string;
 };
 
 type TopologyEdge = {
@@ -37,6 +41,75 @@ type TopologyResponse = {
 type NetworkTopologyProps = {
   theme?: "dark" | "light";
 };
+
+type VulnerabilityRow = {
+  graph_asset_id: string;
+  severity: string;
+  status: string;
+};
+
+type VulnerabilityListResponse = {
+  success: boolean;
+  findings: VulnerabilityRow[];
+};
+
+const ACTIVE_VULNERABILITY_STATUSES = new Set(["OPEN", "IN_PROGRESS"]);
+const VULNERABILITY_POINTS: Record<string, number> = {
+  CRITICAL: 10, HIGH: 7, MEDIUM: 4, LOW: 1,
+};
+const ASSET_CRITICALITY_MULTIPLIER: Record<string, number> = {
+  LOW: 1, MEDIUM: 1.15, HIGH: 1.3, CRITICAL: 1.5,
+};
+
+async function addVulnerabilityRisk(result: TopologyResponse): Promise<TopologyResponse> {
+  try {
+    const response = await authenticatedFetch("/vulnerabilities?limit=500&offset=0");
+    if (!response.ok) return result;
+    const payload = (await response.json()) as VulnerabilityListResponse;
+    if (!payload.success || !Array.isArray(payload.findings)) return result;
+
+    const findingsByAsset = new Map<string, VulnerabilityRow[]>();
+    payload.findings.forEach((finding) => {
+      const key = String(finding.graph_asset_id ?? "");
+      if (!key) return;
+      const current = findingsByAsset.get(key) ?? [];
+      current.push(finding);
+      findingsByAsset.set(key, current);
+    });
+
+    return {
+      ...result,
+      nodes: result.nodes.map((node) => {
+        const findings = findingsByAsset.get(String(node.id)) ?? [];
+        const active = findings.filter((finding) =>
+          ACTIVE_VULNERABILITY_STATUSES.has(String(finding.status).toUpperCase())
+        );
+        const points = active.reduce(
+          (sum, finding) =>
+            sum + (VULNERABILITY_POINTS[String(finding.severity).toUpperCase()] ?? 0),
+          0
+        );
+        const multiplier =
+          ASSET_CRITICALITY_MULTIPLIER[String(node.criticality ?? "").toUpperCase()] ?? 1;
+        const score = Math.min(100, Math.round(points * multiplier));
+        const level =
+          score >= 80 ? "CRITICAL" :
+          score >= 60 ? "HIGH" :
+          score >= 35 ? "MEDIUM" : "LOW";
+        return {
+          ...node,
+          vulnerability_count: findings.length,
+          active_vulnerability_count: active.length,
+          vulnerability_risk_score: score,
+          vulnerability_risk_level: level,
+        };
+      }),
+    };
+  } catch {
+    // Keep topology usable if the optional vulnerability summary is unavailable.
+    return result;
+  }
+}
 
 export default function NetworkTopology({ theme = "dark" }: NetworkTopologyProps) {
   const graphRef = useRef<HTMLDivElement>(null);
@@ -77,7 +150,8 @@ export default function NetworkTopology({ theme = "dark" }: NetworkTopologyProps
         throw new Error("Invalid network topology response.");
       }
 
-      setData(result);
+      const enrichedResult = await addVulnerabilityRisk(result);
+      setData(enrichedResult);
       setSelectedNode(null);
     } catch (err) {
       setError(
@@ -117,8 +191,10 @@ export default function NetworkTopology({ theme = "dark" }: NetworkTopologyProps
           throw new Error("Invalid network topology response.");
         }
 
+        const enrichedResult = await addVulnerabilityRisk(result);
+
         if (!cancelled) {
-          setData(result);
+          setData(enrichedResult);
           setError("");
         }
       } catch (err) {
@@ -161,6 +237,9 @@ export default function NetworkTopology({ theme = "dark" }: NetworkTopologyProps
           criticality: (node.criticality ?? "Unknown").trim().toUpperCase(),
           ip: node.ip_address ?? "Not available",
           environment: node.environment ?? "Unknown",
+          vulnerabilityRisk: node.vulnerability_risk_level ?? "UNKNOWN",
+          vulnerabilityRiskScore: node.vulnerability_risk_score ?? 0,
+          activeVulnerabilities: node.active_vulnerability_count ?? 0,
         },
       })),
 
@@ -247,6 +326,27 @@ export default function NetworkTopology({ theme = "dark" }: NetworkTopologyProps
           style: {
             "background-color": "#475569",
             "border-color": "#94a3b8",
+          },
+        },
+
+        {
+          selector: 'node[vulnerabilityRisk = "CRITICAL"][activeVulnerabilities > 0]',
+          style: {
+            "border-color": "#ff4d5e",
+            "border-width": 6,
+            "underlay-color": "#ff4d5e",
+            "underlay-opacity": 0.22,
+            "underlay-padding": 8,
+          },
+        },
+        {
+          selector: 'node[vulnerabilityRisk = "HIGH"][activeVulnerabilities > 0]',
+          style: {
+            "border-color": "#ffad70",
+            "border-width": 5,
+            "underlay-color": "#ffad70",
+            "underlay-opacity": 0.16,
+            "underlay-padding": 6,
           },
         },
 
@@ -477,6 +577,19 @@ resizeObserver.observe(graphRef.current!);
             </strong>
           </div>
 
+          <div>
+            <span>High Vulnerability Risk</span>
+            <strong>
+              {
+                data.nodes.filter(
+                  (node) =>
+                    (node.active_vulnerability_count ?? 0) > 0 &&
+                    ["HIGH", "CRITICAL"].includes(node.vulnerability_risk_level ?? "")
+                ).length
+              }
+            </strong>
+          </div>
+
         </div>
       )}
 
@@ -555,6 +668,10 @@ resizeObserver.observe(graphRef.current!);
                 ["IP Address", selectedNode.ip_address],
                 ["Criticality", selectedNode.criticality],
                 ["Environment", selectedNode.environment],
+                ["Total vulnerabilities", selectedNode.vulnerability_count ?? 0],
+                ["Active vulnerabilities", selectedNode.active_vulnerability_count ?? 0],
+                ["Vulnerability risk", selectedNode.vulnerability_risk_level ?? "Not assessed"],
+                ["Vulnerability risk score", selectedNode.vulnerability_risk_score ?? "—"],
               ].map(([label, value]) => (
                 <div
                   className="topology-detail-row"
@@ -591,6 +708,11 @@ resizeObserver.observe(graphRef.current!);
         <span>
           <i className="topology-critical" />
           Critical Asset
+        </span>
+
+        <span>
+          <i className="topology-critical" />
+          Critical vulnerability risk
         </span>
 
         <span>

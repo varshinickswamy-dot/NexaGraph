@@ -31,7 +31,9 @@ type Finding = {
   cvss_score?: number | null;
 };
 type VulnerabilitySummary = {
+  success?: boolean;
   total_findings?: number;
+  by_severity?: Record<string, number>;
   by_status?: Record<string, number>;
 };
 
@@ -105,7 +107,7 @@ export default function SOCOverview({ organizationId }: Props) {
     jobs.push(getJson<{success?: boolean; findings?: Finding[]}>("/vulnerabilities?limit=500&offset=0")
       .then((data) => setFindings(Array.isArray(data.findings) ? data.findings : []))
       .catch(() => { nextErrors.push("Vulnerability findings unavailable"); }));
-    jobs.push(getJson<VulnerabilitySummary>("/vulnerabilities/summary")
+    jobs.push(getJson<VulnerabilitySummary>(`/vulnerabilities/summary${organizationId ? `?organization_id=${encodeURIComponent(organizationId)}` : ""}`)
       .then(setVulnerabilitySummary)
       .catch(() => { setVulnerabilitySummary(null); nextErrors.push("Vulnerability summary unavailable"); }));
     jobs.push(fetch(`${API_BASE_URL}/api/ml/status`)

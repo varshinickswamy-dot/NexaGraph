@@ -944,7 +944,7 @@ function App() {
       </header>
 
       <div className="nx-app-shell">
-        <aside className={`nx-sidebar ${sidebarOpen ? "is-open" : ""}`} aria-label="Main navigation">
+        <aside id="nexagraph-main-navigation" className={`nx-sidebar ${sidebarOpen ? "is-open" : ""}`} aria-label="Main navigation">
           <div className="nx-sidebar-brand">
             <span className="nx-brand-mark">N</span>
             <div><strong>NexaGraph</strong><small>Security workspace</small></div>
@@ -975,10 +975,18 @@ function App() {
           </div>
         </aside>
         {sidebarOpen && <button className="nx-sidebar-backdrop" aria-label="Close navigation" onClick={() => setSidebarOpen(false)} />}
+        <button
+          className="nx-floating-menu"
+          type="button"
+          onClick={() => setSidebarOpen((open) => !open)}
+          aria-expanded={sidebarOpen}
+          aria-controls="nexagraph-main-navigation"
+          aria-label={sidebarOpen ? "Close navigation menu" : "Open navigation menu"}
+          title="Open navigation"
+        >
+          <span aria-hidden="true">{sidebarOpen ? "×" : "☰"}</span>
+        </button>
         <div className="nx-content">
-          <button className="nx-mobile-menu" type="button" onClick={() => setSidebarOpen((open) => !open)} aria-expanded={sidebarOpen} aria-label="Toggle navigation">
-            <span aria-hidden="true">☰</span> {sidebarOpen ? "Close menu" : "Menu"}
-          </button>
           <main className="main">
         <section className="stats" id="overview">
           <div className="stat-card">

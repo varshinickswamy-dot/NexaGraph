@@ -140,7 +140,7 @@ app.add_middleware(
 
 
 class AssetInput(BaseModel):
-    id: str = Field(min_length=1, max_length=50)
+    id: str = Field(min_length=1, max_length=128)
     name: str = Field(min_length=1, max_length=100)
     type: str = Field(min_length=1, max_length=50)
     ip: str = Field(min_length=1, max_length=100)
@@ -474,14 +474,17 @@ def update_asset(asset_id: str, asset: AssetInput):
 
         with driver.session() as session:
             result = session.run("""
-                MATCH (a:Asset {id: $id})
+                MATCH (a:Asset)
+                WHERE a.graph_key = $id OR a.id = $id
+                WITH a
+                LIMIT 1
                 SET a.name = $name,
                     a.type = $type,
                     a.ip = $ip,
                     a.criticality = $criticality,
                     a.exposed = $exposed,
                     a.compromised = $compromised
-                RETURN a.id AS id
+                RETURN coalesce(a.graph_key, a.id) AS id
             """, **asset.model_dump()).single()
 
             if not result:

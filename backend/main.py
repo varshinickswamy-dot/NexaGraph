@@ -156,7 +156,7 @@ class ConnectionInput(BaseModel):
     protocol: str = Field(default="TCP", max_length=30)
 
 
-def graph_data():
+def graph_data(organization_id: str | None = None):
     """
     Retrieve the organization-aware network graph from Neo4j.
 
@@ -167,16 +167,18 @@ def graph_data():
     if driver is None:
         ensure_fallback_graph()
 
-        return {
-            "nodes": [
-                dict(node)
-                for node in GRAPH_STATE["nodes"]
-            ],
-            "edges": [
-                dict(edge)
-                for edge in GRAPH_STATE["edges"]
-            ],
-        }
+        visible_nodes = [
+            dict(node) for node in GRAPH_STATE["nodes"]
+            if organization_id is None
+            or str(node.get("organization_id")) == str(organization_id)
+        ]
+        visible_ids = {node["id"] for node in visible_nodes}
+        visible_edges = [
+            dict(edge) for edge in GRAPH_STATE["edges"]
+            if edge.get("source") in visible_ids
+            and edge.get("target") in visible_ids
+        ]
+        return {"nodes": visible_nodes, "edges": visible_edges}
 
     with driver.session() as session:
 
@@ -185,6 +187,7 @@ def graph_data():
             MATCH (a:Asset)
             WHERE a.graph_key IS NOT NULL
               AND a.organization_id IS NOT NULL
+              AND ($organization_id IS NULL OR a.organization_id = $organization_id)
 
             RETURN collect({
                 id: a.graph_key,
@@ -201,7 +204,7 @@ def graph_data():
                 environment: a.environment,
                 operating_system: a.operating_system
             }) AS nodes
-        """).single()
+        """, organization_id=organization_id).single()
 
         # Only active network-access relationships are traversable.
         edges_result = session.run("""
@@ -211,6 +214,7 @@ def graph_data():
               AND b.graph_key IS NOT NULL
               AND a.organization_id IS NOT NULL
               AND a.organization_id = b.organization_id
+              AND ($organization_id IS NULL OR a.organization_id = $organization_id)
               AND type(r) IN [
                   'CONNECTS_TO',
                   'ALLOWS_TRAFFIC'
@@ -226,7 +230,7 @@ def graph_data():
                 port: r.port,
                 direction: r.direction
             }) AS edges
-        """).single()
+        """, organization_id=organization_id).single()
 
         return {
             "nodes": nodes_result["nodes"] if nodes_result else [],
@@ -292,7 +296,10 @@ def database_health():
 @app.get("/graph")
 def get_graph(current_user: dict = Depends(get_current_user)):
     try:
-        return graph_data()
+        organization_id = None if current_user.get("role") == "SUPER_ADMIN" else current_user.get("organization_id")
+        if not organization_id and current_user.get("role") != "SUPER_ADMIN":
+            raise HTTPException(status_code=403, detail="Your account is not assigned to an organization.")
+        return graph_data(organization_id)
     except Exception as exc:
         raise HTTPException(
             status_code=503,
@@ -857,7 +864,10 @@ def analyze_graph_snapshot(nodes, edges, max_depth=MAX_PATH_DEPTH, max_paths=MAX
 def get_attack_paths(current_user: dict = Depends(get_current_user)):
     """Find directed paths from exposed/compromised assets to critical assets."""
     try:
-        data = graph_data()
+        organization_id = None if current_user.get("role") == "SUPER_ADMIN" else current_user.get("organization_id")
+        if not organization_id and current_user.get("role") != "SUPER_ADMIN":
+            raise HTTPException(status_code=403, detail="Your account is not assigned to an organization.")
+        data = graph_data(organization_id)
         return analyze_graph_snapshot(data["nodes"], data["edges"])
     except Exception as exc:
         raise HTTPException(
@@ -882,7 +892,10 @@ def simulate_remediation(request: RemediationSimulationInput, current_user: dict
     Never changes Neo4j.
     """
     try:
-        data = graph_data()
+        organization_id = None if current_user.get("role") == "SUPER_ADMIN" else current_user.get("organization_id")
+        if not organization_id and current_user.get("role") != "SUPER_ADMIN":
+            raise HTTPException(status_code=403, detail="Your account is not assigned to an organization.")
+        data = graph_data(organization_id)
         original_nodes = data["nodes"]
         original_edges = data["edges"]
 

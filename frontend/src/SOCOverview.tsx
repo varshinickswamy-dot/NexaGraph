@@ -18,6 +18,7 @@ type EventSummary = {
   event_types?: { event_type?: string; count?: number }[];
 };
 type GraphData = { nodes?: unknown[]; edges?: unknown[] };
+type SecurityEvent = { id?: string; event_type?: string; severity?: string; occurred_at?: string; created_at?: string };
 type Finding = { severity?: string; status?: string };
 type VulnerabilitySummary = {
   total_findings?: number;
@@ -51,6 +52,7 @@ function countActiveIncidentSeverity(
 export default function SOCOverview({ organizationId }: Props) {
   const [incident, setIncident] = useState<IncidentSummary | null>(null);
   const [events, setEvents] = useState<EventSummary | null>(null);
+  const [recentEvents, setRecentEvents] = useState<SecurityEvent[]>([]);
   const [graph, setGraph] = useState<GraphData | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [vulnerabilitySummary, setVulnerabilitySummary] = useState<VulnerabilitySummary | null>(null);
@@ -69,9 +71,13 @@ export default function SOCOverview({ organizationId }: Props) {
         .then(setIncident).catch(() => { nextErrors.push("Incident summary unavailable"); }));
       jobs.push(getJson<EventSummary>(`/security-events/summary?organization_id=${encodeURIComponent(organizationId)}`)
         .then(setEvents).catch(() => { nextErrors.push("Security-event summary unavailable"); }));
+      jobs.push(getJson<SecurityEvent[]>(`/security-events?organization_id=${encodeURIComponent(organizationId)}&limit=500&offset=0`)
+        .then((data) => setRecentEvents(Array.isArray(data) ? data : []))
+        .catch(() => { setRecentEvents([]); nextErrors.push("Recent security activity unavailable"); }));
     } else {
       setIncident(null);
       setEvents(null);
+      setRecentEvents([]);
       nextErrors.push("Organization context is unavailable");
     }
 
@@ -121,6 +127,26 @@ export default function SOCOverview({ organizationId }: Props) {
   const criticalEvents = Number(events?.critical) || 0;
   const highEvents = Number(events?.high) || 0;
   const priorityCount = criticalFindings + criticalIncidents + criticalEvents + highIncidents + highEvents;
+  const activityTimeline = useMemo(() => {
+    const days = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date();
+      date.setHours(0, 0, 0, 0);
+      date.setDate(date.getDate() - (6 - index));
+      return { key: date.toISOString().slice(0, 10), label: date.toLocaleDateString(undefined, { weekday: "short" }), count: 0, critical: 0 };
+    });
+    const byDate = new Map(days.map((day) => [day.key, day]));
+    recentEvents.forEach((event) => {
+      const rawDate = event.occurred_at || event.created_at;
+      if (!rawDate) return;
+      const date = new Date(rawDate);
+      if (Number.isNaN(date.getTime())) return;
+      const day = byDate.get(date.toISOString().slice(0, 10));
+      if (!day) return;
+      day.count += 1;
+      if (String(event.severity || "").toUpperCase() === "CRITICAL") day.critical += 1;
+    });
+    return days;
+  }, [recentEvents]);
 
   return (
     <section className="soc-overview nx-nav-section" id="soc-overview">
@@ -176,6 +202,25 @@ export default function SOCOverview({ organizationId }: Props) {
               })}
             </div>
           ) : <p className="soc-footnote">No event-type breakdown is available yet.</p>}
+        </article>
+        <article className="soc-panel soc-timeline-panel">
+          <div className="soc-panel-title"><h3>Threat activity timeline</h3><span>Last 7 days · latest 500 events</span></div>
+          <div className="soc-timeline" role="img" aria-label="Security events recorded each day over the last seven days">
+            {activityTimeline.map((day) => {
+              const peak = Math.max(...activityTimeline.map((item) => item.count), 1);
+              return (
+                <div className="soc-timeline-day" key={day.key}>
+                  <div className="soc-timeline-bar-wrap">
+                    <span className="soc-timeline-bar" style={{ height: `${Math.max(day.count ? 8 : 2, (day.count / peak) * 100)}%` }} />
+                    {day.critical > 0 && <i title={`${day.critical} critical events`} />}
+                  </div>
+                  <strong>{day.count}</strong>
+                  <small>{day.label}</small>
+                </div>
+              );
+            })}
+          </div>
+          <p className="soc-footnote">Daily counts are calculated from the existing security-event records returned by your organization API. This is activity volume, not a detection-rate score.</p>
         </article>
         <article className="soc-panel">
           <div className="soc-panel-title"><h3>Workspace health</h3><span>Live service checks</span></div>

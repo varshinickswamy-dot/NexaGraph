@@ -5,7 +5,8 @@ import numpy as np
 from pathlib import Path
 from functools import lru_cache
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from backend.auth_routes import get_current_user
 from pydantic import BaseModel, Field, ConfigDict
 
 
@@ -38,12 +39,14 @@ class PredictionInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     features: dict[str, float] = Field(
+        min_length=1,
+        max_length=100,
         description="Network-flow feature values using CIC-IDS-2017 feature names."
     )
 
 
 @router.get("/status")
-def ml_status():
+def ml_status(current_user: dict = Depends(get_current_user)):
     return {
         "available": MODEL_PATH.exists(),
         "metrics_available": METRICS_PATH.exists(),
@@ -53,7 +56,7 @@ def ml_status():
 
 
 @router.get("/metrics")
-def ml_metrics():
+def ml_metrics(current_user: dict = Depends(get_current_user)):
     try:
         return load_metrics()
     except FileNotFoundError as exc:
@@ -61,7 +64,10 @@ def ml_metrics():
 
 
 @router.post("/predict")
-def predict_network_traffic(payload: PredictionInput):
+def predict_network_traffic(
+    payload: PredictionInput,
+    current_user: dict = Depends(get_current_user),
+):
     try:
         bundle = load_model_bundle()
 

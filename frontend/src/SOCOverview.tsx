@@ -119,9 +119,9 @@ export default function SOCOverview({ organizationId }: Props) {
   }, [refresh]);
 
   const activeFindings = useMemo(() => findings.filter((item) =>
-    ["OPEN", "IN_PROGRESS"].includes(String(item.status).toUpperCase())
+    ["OPEN", "IN_PROGRESS"].includes(String(item.status || "").toUpperCase())
   ), [findings]);
-  const criticalFindings = activeFindings.filter((item) => String(item.severity).toUpperCase() === "CRITICAL").length;
+  const criticalFindings = activeFindings.filter((item) => String(item.severity || "").toUpperCase() === "CRITICAL").length;
   const assetRiskLeaders = useMemo(() => {
     const severityPoints: Record<string, number> = { CRITICAL: 10, HIGH: 7, MEDIUM: 4, LOW: 1 };
     const criticalityMultiplier: Record<string, number> = { LOW: 1, MEDIUM: 1.15, HIGH: 1.3, CRITICAL: 1.5 };

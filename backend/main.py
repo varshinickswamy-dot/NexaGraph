@@ -338,7 +338,7 @@ def health():
 
 
 @app.get("/health/database")
-def database_health():
+def database_health(current_user: dict = Depends(get_current_user)):
     return check_database_connection()
 
 

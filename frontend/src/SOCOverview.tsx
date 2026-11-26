@@ -19,7 +19,17 @@ type EventSummary = {
 };
 type GraphData = { nodes?: unknown[]; edges?: unknown[] };
 type SecurityEvent = { id?: string; event_type?: string; severity?: string; occurred_at?: string; created_at?: string };
-type Finding = { severity?: string; status?: string };
+type Finding = {
+  finding_id?: string;
+  graph_asset_id?: string;
+  asset_name?: string;
+  asset_type?: string | null;
+  ip_address?: string | null;
+  asset_criticality?: string | null;
+  severity?: string;
+  status?: string;
+  cvss_score?: number | null;
+};
 type VulnerabilitySummary = {
   total_findings?: number;
   by_status?: Record<string, number>;
@@ -112,6 +122,33 @@ export default function SOCOverview({ organizationId }: Props) {
     ["OPEN", "IN_PROGRESS"].includes(String(item.status).toUpperCase())
   ), [findings]);
   const criticalFindings = activeFindings.filter((item) => String(item.severity).toUpperCase() === "CRITICAL").length;
+  const assetRiskLeaders = useMemo(() => {
+    const severityPoints: Record<string, number> = { CRITICAL: 10, HIGH: 7, MEDIUM: 4, LOW: 1 };
+    const criticalityMultiplier: Record<string, number> = { LOW: 1, MEDIUM: 1.15, HIGH: 1.3, CRITICAL: 1.5 };
+    const grouped = new Map<string, {
+      id: string; name: string; type: string; ip: string; criticality: string;
+      findings: number; critical: number; high: number; maxCvss: number; score: number;
+    }>();
+    activeFindings.forEach((finding) => {
+      const id = finding.graph_asset_id || finding.asset_name || "unknown";
+      const existing = grouped.get(id) || {
+        id, name: finding.asset_name || "Unnamed asset", type: finding.asset_type || "Asset",
+        ip: finding.ip_address || "", criticality: String(finding.asset_criticality || "LOW").toUpperCase(),
+        findings: 0, critical: 0, high: 0, maxCvss: 0, score: 0,
+      };
+      const severity = String(finding.severity || "").toUpperCase();
+      existing.findings += 1;
+      if (severity === "CRITICAL") existing.critical += 1;
+      if (severity === "HIGH") existing.high += 1;
+      existing.maxCvss = Math.max(existing.maxCvss, Number(finding.cvss_score) || 0);
+      existing.score += severityPoints[severity] || 0;
+      grouped.set(id, existing);
+    });
+    return [...grouped.values()].map((asset) => ({
+      ...asset,
+      score: Math.min(100, Math.round(asset.score * (criticalityMultiplier[asset.criticality] || 1))),
+    })).sort((a, b) => b.score - a.score || b.maxCvss - a.maxCvss || b.findings - a.findings).slice(0, 5);
+  }, [activeFindings]);
   const activeVulnerabilityCount = vulnerabilitySummary?.by_status
     ? (Number(vulnerabilitySummary.by_status.OPEN) || 0) + (Number(vulnerabilitySummary.by_status.IN_PROGRESS) || 0)
     : activeFindings.length;
@@ -209,6 +246,27 @@ export default function SOCOverview({ organizationId }: Props) {
             <div><span className="soc-severity high">High security events · all time</span><strong>{highEvents}</strong></div>
           </div>
           <p className="soc-footnote">Counts are sourced from existing module APIs; the same underlying issue may appear in more than one category.</p>
+        </article>
+        <article className="soc-panel soc-asset-risk">
+          <div className="soc-panel-title"><h3>Asset risk intelligence</h3><span>Top affected assets · latest 500 findings</span></div>
+          {assetRiskLeaders.length ? (
+            <div className="soc-risk-assets">
+              {assetRiskLeaders.map((asset, index) => (
+                <div className="soc-risk-asset" key={asset.id}>
+                  <div className="soc-risk-rank">{index + 1}</div>
+                  <div className="soc-risk-main">
+                    <strong>{asset.name}</strong>
+                    <span>{asset.type} · {asset.criticality} criticality{asset.ip ? ` · ${asset.ip}` : ""}</span>
+                    <small>{asset.critical} critical · {asset.high} high · {asset.findings} active findings{asset.maxCvss ? ` · CVSS ${asset.maxCvss.toFixed(1)} max` : ""}</small>
+                  </div>
+                  <div className="soc-risk-score" aria-label={`Heuristic risk score ${asset.score} out of 100`}>
+                    <strong>{asset.score}</strong><span>/100</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : <p className="soc-footnote">No active asset findings are available in the latest results.</p>}
+          <p className="soc-footnote">Triage score uses the same heuristic as Asset Vulnerability: severity points multiplied by asset criticality. It is a prioritization aid, not a CVSS score or certified risk rating.</p>
         </article>
         <article className="soc-panel soc-incident-analysis">
           <div className="soc-panel-title"><h3>Incident analysis</h3><span>Live status and severity distribution</span></div>

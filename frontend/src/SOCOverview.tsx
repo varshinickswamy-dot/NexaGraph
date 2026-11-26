@@ -87,7 +87,10 @@ export default function SOCOverview({ organizationId }: Props) {
   const [readAlertIds, setReadAlertIds] = useState<string[]>(() => {
     try {
       const stored = window.localStorage.getItem("nexagraph:soc:read-alerts");
-      return stored ? JSON.parse(stored) as string[] : [];
+      const parsed: unknown = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed)
+        ? parsed.filter((value): value is string => typeof value === "string").slice(-500)
+        : [];
     } catch {
       return [];
     }
@@ -121,7 +124,7 @@ export default function SOCOverview({ organizationId }: Props) {
     jobs.push(getJson<VulnerabilitySummary>(`/vulnerabilities/summary${organizationId ? `?organization_id=${encodeURIComponent(organizationId)}` : ""}`)
       .then(setVulnerabilitySummary)
       .catch(() => { setVulnerabilitySummary(null); nextErrors.push("Vulnerability summary unavailable"); }));
-    jobs.push(fetch(`${API_BASE_URL}/api/ml/status`)
+    jobs.push(authenticatedFetch("/api/ml/status")
       .then(async (response) => {
         if (!response.ok) throw new Error("ML status unavailable");
         const data = await response.json();

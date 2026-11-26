@@ -18,7 +18,17 @@ type EventSummary = {
   event_types?: { event_type?: string; count?: number }[];
 };
 type GraphData = { nodes?: unknown[]; edges?: unknown[] };
-type SecurityEvent = { id?: string; event_type?: string; severity?: string; description?: string; occurred_at?: string; created_at?: string };
+type SecurityEvent = {
+  id?: string;
+  event_type?: string;
+  severity?: string;
+  description?: string;
+  asset_name?: string | null;
+  source_ip?: string | null;
+  destination_ip?: string | null;
+  occurred_at?: string;
+  created_at?: string;
+};
 type Finding = {
   finding_id?: string;
   graph_asset_id?: string;
@@ -206,7 +216,12 @@ export default function SOCOverview({ organizationId }: Props) {
       if (!id) return;
       generated.push({
         id, severity, title: (event.event_type || "Security event").replaceAll("_", " "),
-        detail: event.description || "Security event recorded by monitoring.",
+        detail: [
+          event.description || "Security event recorded by monitoring.",
+          event.asset_name ? `Asset: ${event.asset_name}` : "",
+          event.source_ip ? `Source: ${event.source_ip}` : "",
+          event.destination_ip ? `Destination: ${event.destination_ip}` : "",
+        ].filter(Boolean).join(" · "),
         time: event.occurred_at || event.created_at || "", target: "security-events",
       });
     });

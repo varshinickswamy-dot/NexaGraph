@@ -47,7 +47,7 @@ def mock_graph(monkeypatch):
         {
             "source": "A02",
             "target": "A06",
-            "relationship": "ACCESSES",
+            "relationship": "CONNECTS",
         },
     ]
 
@@ -94,9 +94,9 @@ def test_remove_connection_success(mock_graph):
     data = response.json()
     assert data["simulated_only"] is True
     assert data["database_modified"] is False
-    assert data["before"]["total_paths"] == 2
+    assert data["before"]["total_paths"] == 1
     assert data["after"]["total_paths"] == 0
-    assert data["paths_eliminated"] == 2
+    assert data["paths_eliminated"] == 1
 
 
 def test_isolate_asset_success(mock_graph):

@@ -126,10 +126,28 @@ type AppTheme = "dark" | "light";
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState("");
   const [theme, setTheme] = useState<AppTheme>(() => {
     const saved = window.localStorage.getItem("nexagraph-theme");
     return saved === "light" ? "light" : "dark";
   });
+
+  useEffect(() => {
+    function handleGlobalShortcut(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandOpen((open) => !open);
+        setCommandQuery("");
+      }
+      if (event.key === "Escape") {
+        setCommandOpen(false);
+        setSidebarOpen(false);
+      }
+    }
+    window.addEventListener("keydown", handleGlobalShortcut);
+    return () => window.removeEventListener("keydown", handleGlobalShortcut);
+  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -1880,6 +1898,71 @@ function App() {
           </main>
         </div>
       </div>
+      {commandOpen && (
+        <div className="nx-command-backdrop" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setCommandOpen(false);
+        }}>
+          <section className="nx-command-dialog" role="dialog" aria-modal="true" aria-labelledby="nx-command-title">
+            <div className="nx-command-heading">
+              <div>
+                <span>QUICK NAVIGATION</span>
+                <h2 id="nx-command-title">Where would you like to go?</h2>
+              </div>
+              <button type="button" onClick={() => setCommandOpen(false)} aria-label="Close quick navigation">×</button>
+            </div>
+            <input
+              autoFocus
+              type="search"
+              value={commandQuery}
+              onChange={(event) => setCommandQuery(event.target.value)}
+              placeholder="Search dashboard, incidents, assets..."
+              aria-label="Search project sections"
+            />
+            <div className="nx-command-results">
+              {[
+                { id: "overview", label: "Overview", detail: "Dashboard and security summary" },
+                { id: "ml-detection", label: "AI Threat Detection", detail: "Machine-learning detection metrics" },
+                { id: "network-topology", label: "Network Topology", detail: "Explore connected assets" },
+                { id: "vulnerability-intelligence", label: "Vulnerability Intelligence", detail: "Review asset findings" },
+                { id: "incidents", label: "Incident Management", detail: "Track and investigate incidents" },
+                { id: "security-events", label: "Security Events", detail: "Monitor security activity" },
+                { id: "security-intelligence", label: "Threat Intelligence", detail: "Explore security intelligence" },
+                { id: "asset-management", label: "Asset Management", detail: "Manage assets and relationships" },
+                ...((authUser.role === "ORG_ADMIN" || authUser.role === "SUPER_ADMIN")
+                  ? [{ id: "team-management", label: "Team Management", detail: "Manage organization invitations" }]
+                  : []),
+              ].filter((item) => `${item.label} ${item.detail}`.toLowerCase().includes(commandQuery.trim().toLowerCase())).map((item) => (
+                <button key={item.id} type="button" onClick={() => {
+                  document.getElementById(item.id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  setCommandOpen(false);
+                  setCommandQuery("");
+                  setSidebarOpen(false);
+                }}>
+                  <span className="nx-command-result-icon">⌕</span>
+                  <span><strong>{item.label}</strong><small>{item.detail}</small></span>
+                  <kbd>↵</kbd>
+                </button>
+              ))}
+              {[
+                { id: "overview", label: "Overview", detail: "Dashboard and security summary" },
+                { id: "ml-detection", label: "AI Threat Detection", detail: "Machine-learning detection metrics" },
+                { id: "network-topology", label: "Network Topology", detail: "Explore connected assets" },
+                { id: "vulnerability-intelligence", label: "Vulnerability Intelligence", detail: "Review asset findings" },
+                { id: "incidents", label: "Incident Management", detail: "Track and investigate incidents" },
+                { id: "security-events", label: "Security Events", detail: "Monitor security activity" },
+                { id: "security-intelligence", label: "Threat Intelligence", detail: "Explore security intelligence" },
+                { id: "asset-management", label: "Asset Management", detail: "Manage assets and relationships" },
+                ...((authUser.role === "ORG_ADMIN" || authUser.role === "SUPER_ADMIN")
+                  ? [{ id: "team-management", label: "Team Management", detail: "Manage organization invitations" }]
+                  : []),
+              ].filter((item) => `${item.label} ${item.detail}`.toLowerCase().includes(commandQuery.trim().toLowerCase())).length === 0 && (
+                <p className="nx-command-empty">No matching sections. Try another search.</p>
+              )}
+            </div>
+            <footer><span><kbd>Ctrl</kbd> + <kbd>K</kbd> to toggle</span><span><kbd>Esc</kbd> to close</span></footer>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

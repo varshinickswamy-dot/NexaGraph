@@ -309,6 +309,10 @@ def get_graph(current_user: dict = Depends(get_current_user)):
 
 @app.post("/assets", status_code=201)
 def add_asset(asset: AssetInput, current_user: dict = Depends(require_roles("SUPER_ADMIN", "ORG_ADMIN", "SECURITY_ANALYST"))):
+    organization_id = current_user.get("organization_id")
+    if not organization_id:
+        raise HTTPException(status_code=403, detail="An organization must be selected for asset changes.")
+
     asset_id = asset.id.strip()
     if not asset_id:
         raise HTTPException(400, "Asset ID cannot be blank.")
@@ -325,7 +329,7 @@ def add_asset(asset: AssetInput, current_user: dict = Depends(require_roles("SUP
     try:
         if driver is None:
             ensure_fallback_graph()
-            if any(node["id"] == asset_id for node in GRAPH_STATE["nodes"]):
+            if any(node["id"] == asset_id and str(node.get("organization_id")) == str(organization_id) for node in GRAPH_STATE["nodes"]):
                 raise HTTPException(status_code=409, detail=f"Asset ID '{asset_id}' already exists.")
             GRAPH_STATE["nodes"].append({
                 "id": asset_id,
@@ -335,14 +339,15 @@ def add_asset(asset: AssetInput, current_user: dict = Depends(require_roles("SUP
                 "criticality": asset.criticality,
                 "exposed": asset.exposed,
                 "compromised": asset.compromised,
+                "organization_id": organization_id,
             })
-            return {"message": "Asset added successfully.", "graph": graph_data()}
+            return {"message": "Asset added successfully.", "graph": graph_data(organization_id)}
 
         with driver.session() as session:
             result = session.run("""
-                MATCH (existing:Asset {id: $id})
+                MATCH (existing:Asset {id: $id, organization_id: $organization_id})
                 RETURN existing
-            """, id=asset_id).single()
+            """, id=asset_id, organization_id=organization_id).single()
 
             if result:
                 raise HTTPException(
@@ -358,17 +363,20 @@ def add_asset(asset: AssetInput, current_user: dict = Depends(require_roles("SUP
                     ip: $ip,
                     criticality: $criticality,
                     exposed: $exposed,
-                    compromised: $compromised
+                    compromised: $compromised,
+                    graph_key: $id,
+                    organization_id: $organization_id
                 })
             """, **{
                 **asset.model_dump(),
+                "organization_id": organization_id,
                 "id": asset_id,
                 "name": asset.name.strip(),
                 "type": asset.type.strip(),
                 "ip": asset.ip.strip(),
             })
 
-        return {"message": "Asset added successfully.", "graph": graph_data()}
+        return {"message": "Asset added successfully.", "graph": graph_data(organization_id)}
 
     except HTTPException:
         raise
@@ -378,22 +386,35 @@ def add_asset(asset: AssetInput, current_user: dict = Depends(require_roles("SUP
 
 @app.post("/connections", status_code=201)
 def add_connection(connection: ConnectionInput, current_user: dict = Depends(require_roles("SUPER_ADMIN", "ORG_ADMIN", "SECURITY_ANALYST"))):
+    organization_id = current_user.get("organization_id")
+    if not organization_id:
+        raise HTTPException(status_code=403, detail="An organization must be selected for network changes.")
+
     source = connection.source.strip()
     target = connection.target.strip()
+    organization_id = current_user.get("organization_id")
+    if not organization_id:
+        raise HTTPException(status_code=403, detail="An organization must be selected for network changes.")
+
     relationship = connection.relationship.strip().upper()
+
+    if relationship not in {"CONNECTS_TO", "ALLOWS_TRAFFIC", "CONNECTS"}:
+        raise HTTPException(status_code=400, detail="Unsupported network relationship type.")
 
     if not re.fullmatch(r"[A-Z][A-Z0-9_]{0,39}", relationship):
         raise HTTPException(400, "Use letters, numbers and underscores for the relationship.")
 
     if source == target:
         raise HTTPException(400, "Source and target must be different assets.")
+    if relationship not in {"CONNECTS_TO", "ALLOWS_TRAFFIC", "CONNECTS"}:
+        raise HTTPException(400, "Unsupported network relationship type.")
 
     try:
         if driver is None:
             ensure_fallback_graph()
-            if not any(node["id"] == source for node in GRAPH_STATE["nodes"]):
+            if not any(node["id"] == source and str(node.get("organization_id")) == str(organization_id) for node in GRAPH_STATE["nodes"]):
                 raise HTTPException(status_code=404, detail="Source or target asset was not found.")
-            if not any(node["id"] == target for node in GRAPH_STATE["nodes"]):
+            if not any(node["id"] == target and str(node.get("organization_id")) == str(organization_id) for node in GRAPH_STATE["nodes"]):
                 raise HTTPException(status_code=404, detail="Source or target asset was not found.")
 
             if any(
@@ -402,22 +423,23 @@ def add_connection(connection: ConnectionInput, current_user: dict = Depends(req
                 and edge["relationship"] == relationship
                 for edge in GRAPH_STATE["edges"]
             ):
-                return {"message": "Connection already exists.", "graph": graph_data()}
+                return {"message": "Connection already exists.", "graph": graph_data(organization_id)}
 
             GRAPH_STATE["edges"].append({
                 "source": source,
                 "target": target,
                 "relationship": relationship,
                 "protocol": connection.protocol.strip(),
+                "organization_id": organization_id,
             })
-            return {"message": "Connection added successfully.", "graph": graph_data()}
+            return {"message": "Connection added successfully.", "graph": graph_data(organization_id)}
 
         with driver.session() as session:
             result = session.run("""
-                MATCH (a:Asset {id: $source})
-                MATCH (b:Asset {id: $target})
+                MATCH (a:Asset {id: $source, organization_id: $organization_id})
+                MATCH (b:Asset {id: $target, organization_id: $organization_id})
                 RETURN a.id AS source, b.id AS target
-            """, source=source, target=target).single()
+            """, source=source, target=target, organization_id=organization_id).single()
 
             if not result:
                 raise HTTPException(
@@ -426,16 +448,16 @@ def add_connection(connection: ConnectionInput, current_user: dict = Depends(req
                 )
 
             session.run(f"""
-                MATCH (a:Asset {{id: $source}})
-                MATCH (b:Asset {{id: $target}})
+                MATCH (a:Asset {{id: $source, organization_id: $organization_id}})
+                MATCH (b:Asset {{id: $target, organization_id: $organization_id}})
                 CREATE (a)-[r:{relationship} {{
                     protocol: $protocol
                 }}]->(b)
-            """, source=source, target=target, protocol=connection.protocol.strip())
+            """, source=source, target=target, protocol=connection.protocol.strip(), organization_id=organization_id)
 
         return {
             "message": "Connection added successfully.",
-            "graph": graph_data(),
+            "graph": graph_data(organization_id),
         }
 
     except HTTPException:
@@ -447,6 +469,10 @@ def add_connection(connection: ConnectionInput, current_user: dict = Depends(req
 # Update an existing asset
 @app.put("/assets/{asset_id}")
 def update_asset(asset_id: str, asset: AssetInput, current_user: dict = Depends(require_roles("SUPER_ADMIN", "ORG_ADMIN", "SECURITY_ANALYST"))):
+    organization_id = current_user.get("organization_id")
+    if not organization_id:
+        raise HTTPException(status_code=403, detail="An organization must be selected for asset changes.")
+
     if asset.id.strip() != asset_id:
         raise HTTPException(
             status_code=400,
@@ -466,7 +492,7 @@ def update_asset(asset_id: str, asset: AssetInput, current_user: dict = Depends(
         if driver is None:
             ensure_fallback_graph()
             for index, node in enumerate(GRAPH_STATE["nodes"]):
-                if node["id"] == asset_id:
+                if node["id"] == asset_id and str(node.get("organization_id")) == str(organization_id):
                     GRAPH_STATE["nodes"][index] = {
                         "id": asset_id,
                         "name": asset.name.strip(),
@@ -475,14 +501,16 @@ def update_asset(asset_id: str, asset: AssetInput, current_user: dict = Depends(
                         "criticality": asset.criticality,
                         "exposed": asset.exposed,
                         "compromised": asset.compromised,
+                        "organization_id": organization_id,
                     }
-                    return {"message": "Asset updated successfully.", "graph": graph_data()}
+                    return {"message": "Asset updated successfully.", "graph": graph_data(organization_id)}
             raise HTTPException(status_code=404, detail="Asset not found.")
 
         with driver.session() as session:
             result = session.run("""
                 MATCH (a:Asset)
-                WHERE a.graph_key = $id OR a.id = $id
+                WHERE (a.graph_key = $id OR a.id = $id)
+                  AND a.organization_id = $organization_id
                 WITH a
                 LIMIT 1
                 SET a.name = $name,
@@ -492,14 +520,14 @@ def update_asset(asset_id: str, asset: AssetInput, current_user: dict = Depends(
                     a.exposed = $exposed,
                     a.compromised = $compromised
                 RETURN coalesce(a.graph_key, a.id) AS id
-            """, **asset.model_dump()).single()
+            """, **asset.model_dump(), organization_id=organization_id).single()
 
             if not result:
                 raise HTTPException(status_code=404, detail="Asset not found.")
 
         return {
             "message": "Asset updated successfully.",
-            "graph": graph_data()
+            "graph": graph_data(organization_id)
         }
 
     except HTTPException:
@@ -514,35 +542,43 @@ def update_asset(asset_id: str, asset: AssetInput, current_user: dict = Depends(
 # Delete an asset and its connected relationships
 @app.delete("/assets/{asset_id}")
 def delete_asset(asset_id: str, current_user: dict = Depends(require_roles("SUPER_ADMIN", "ORG_ADMIN"))):
+    organization_id = current_user.get("organization_id")
+    if not organization_id:
+        raise HTTPException(status_code=403, detail="An organization must be selected for asset changes.")
+
     try:
         if driver is None:
             ensure_fallback_graph()
             original_length = len(GRAPH_STATE["nodes"])
-            GRAPH_STATE["nodes"] = [node for node in GRAPH_STATE["nodes"] if node["id"] != asset_id]
+            GRAPH_STATE["nodes"] = [
+                node for node in GRAPH_STATE["nodes"]
+                if not (node["id"] == asset_id and str(node.get("organization_id")) == str(organization_id))
+            ]
             GRAPH_STATE["edges"] = [
                 edge for edge in GRAPH_STATE["edges"]
-                if edge["source"] != asset_id and edge["target"] != asset_id
+                if edge.get("organization_id") != organization_id
+                or (edge["source"] != asset_id and edge["target"] != asset_id)
             ]
             if len(GRAPH_STATE["nodes"]) == original_length:
                 raise HTTPException(status_code=404, detail="Asset not found.")
             return {
                 "message": "Asset and its connections deleted successfully.",
-                "graph": graph_data()
+                "graph": graph_data(organization_id)
             }
 
         with driver.session() as session:
             result = session.run("""
-                MATCH (a:Asset {id: $id})
+                MATCH (a:Asset {id: $id, organization_id: $organization_id})
                 DETACH DELETE a
                 RETURN count(*) AS deleted
-            """, id=asset_id).single()
+            """, id=asset_id, organization_id=organization_id).single()
 
             if not result or result["deleted"] == 0:
                 raise HTTPException(status_code=404, detail="Asset not found.")
 
         return {
             "message": "Asset and its connections deleted successfully.",
-            "graph": graph_data()
+            "graph": graph_data(organization_id)
         }
 
     except HTTPException:
@@ -583,23 +619,25 @@ def delete_connection(connection: DeleteConnectionInput, current_user: dict = De
                     edge["source"] == connection.source
                     and edge["target"] == connection.target
                     and edge["relationship"] == relationship
+                    and str(edge.get("organization_id")) == str(organization_id)
                 )
             ]
             if len(GRAPH_STATE["edges"]) == original_length:
                 raise HTTPException(status_code=404, detail="Connection not found.")
-            return {"message": "Connection deleted successfully.", "graph": graph_data()}
+            return {"message": "Connection deleted successfully.", "graph": graph_data(organization_id)}
 
         with driver.session() as session:
             result = session.run(f"""
-                MATCH (a:Asset {{id: $source}})
-                MATCH (b:Asset {{id: $target}})
+                MATCH (a:Asset {{id: $source, organization_id: $organization_id}})
+                MATCH (b:Asset {{id: $target, organization_id: $organization_id}})
                 MATCH (a)-[r:{relationship}]->(b)
                 WITH collect(r) AS relationships
                 FOREACH (rel IN relationships | DELETE rel)
                 RETURN size(relationships) AS deleted
             """,
                 source=connection.source,
-                target=connection.target
+                target=connection.target,
+                organization_id=organization_id
             ).single()
 
             if not result or result["deleted"] == 0:
@@ -610,7 +648,7 @@ def delete_connection(connection: DeleteConnectionInput, current_user: dict = De
 
         return {
             "message": "Connection deleted successfully.",
-            "graph": graph_data()
+            "graph": graph_data(organization_id)
         }
 
     except HTTPException:

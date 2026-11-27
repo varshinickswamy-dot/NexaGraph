@@ -1035,6 +1035,26 @@ function App() {
             <strong>{compromisedCount}</strong>
           </div>
         </section>
+        <section className="graph-panel nx-nav-section" aria-labelledby="enterprise-attack-graph-title">
+          <div className="panel-header">
+            <div>
+              <h2 id="enterprise-attack-graph-title">Enterprise Attack Graph</h2>
+              <p>Interactive visualization of enterprise assets and their recorded relationships.</p>
+            </div>
+            <span className="live-badge">{loading ? "SYNCING" : error ? "DATA UNAVAILABLE" : "LIVE GRAPH"}</span>
+          </div>
+          {error && <div className="error" role="alert">{error}</div>}
+          {!loading && graph && graph.nodes.length === 0 && (
+            <div className="empty" role="status">No enterprise assets are available yet. Add assets and connections in Asset Management to build the graph.</div>
+          )}
+          <div
+            ref={graphRef}
+            className="graph-container"
+            role="img"
+            aria-label="Interactive enterprise attack graph showing assets and their relationships"
+          />
+        </section>
+
         <section id="ml-detection" className="nx-nav-section"><MLDetectionDashboard /></section>
 
         {/* Organization team management: visible only to authorized administrators */}

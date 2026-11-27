@@ -234,20 +234,19 @@ def graph_data(organization_id: str | None = None):
         # Retrieve only organization-aware synchronized assets.
         nodes_result = session.run("""
             MATCH (a:Asset)
-            WHERE a.graph_key IS NOT NULL
-              AND a.organization_id IS NOT NULL
+            WHERE a.organization_id IS NOT NULL
               AND ($organization_id IS NULL OR a.organization_id = $organization_id)
 
             RETURN collect({
-                id: a.graph_key,
-                graph_key: a.graph_key,
+                id: coalesce(a.graph_key, a.id),
+                graph_key: coalesce(a.graph_key, a.id),
                 organization_id: a.organization_id,
                 postgres_asset_id: a.postgres_asset_id,
                 graph_asset_id: a.graph_asset_id,
                 name: a.name,
                 type: a.type,
                 ip: a.ip,
-                criticality: a.criticality,
+                criticality: coalesce(a.criticality, 'Medium'),
                 exposed: coalesce(a.exposed, 'No'),
                 compromised: coalesce(a.compromised, 'No'),
                 environment: a.environment,
@@ -259,20 +258,19 @@ def graph_data(organization_id: str | None = None):
         edges_result = session.run("""
             MATCH (a:Asset)-[r]->(b:Asset)
 
-            WHERE a.graph_key IS NOT NULL
-              AND b.graph_key IS NOT NULL
-              AND a.organization_id IS NOT NULL
+            WHERE a.organization_id IS NOT NULL
               AND a.organization_id = b.organization_id
               AND ($organization_id IS NULL OR a.organization_id = $organization_id)
               AND type(r) IN [
                   'CONNECTS_TO',
-                  'ALLOWS_TRAFFIC'
+                  'ALLOWS_TRAFFIC',
+                  'CONNECTS'
               ]
               AND coalesce(r.status, 'ACTIVE') = 'ACTIVE'
 
             RETURN collect({
-                source: a.graph_key,
-                target: b.graph_key,
+                source: coalesce(a.graph_key, a.id),
+                target: coalesce(b.graph_key, b.id),
                 organization_id: a.organization_id,
                 relationship: type(r),
                 protocol: r.protocol,

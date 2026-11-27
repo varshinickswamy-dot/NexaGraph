@@ -32,10 +32,8 @@ def send_invitation_email(
         "onboarding@resend.dev",
     )
 
-    sender_name = os.getenv(
-        "RESEND_FROM_NAME",
-        "NexaGraph AI",
-    )
+    # Keep the product sender name canonical even if Render has a malformed value.
+    sender_name = "NexaGraph AI"
 
     if not recipient_email or not sender_email:
         logger.error("Email recipient or sender configuration is missing.")
@@ -190,6 +188,11 @@ NexaGraph AI Team
 
         return True
 
-    except Exception:
-        logger.exception("Resend invitation email failed.")
+    except Exception as exc:
+        # Log provider rejection details for diagnosis; never return secrets to clients.
+        logger.exception(
+            "Resend invitation email failed for recipient %s: %s",
+            recipient_email,
+            exc,
+        )
         return False

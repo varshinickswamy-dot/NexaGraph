@@ -317,7 +317,30 @@ def get_graph(current_user: dict = Depends(get_current_user)):
         organization_id = None if current_user.get("role") == "SUPER_ADMIN" else current_user.get("organization_id")
         if not organization_id and current_user.get("role") != "SUPER_ADMIN":
             raise HTTPException(status_code=403, detail="Your account is not assigned to an organization.")
-        return graph_data(organization_id)
+
+        graph = graph_data(organization_id)
+
+        # PostgreSQL is the source of truth for enterprise assets and
+        # relationships. If the organization's Neo4j projection is empty,
+        # repair that projection from the existing synchronization services.
+        # This is scoped to the authenticated organization and only runs on
+        # an empty graph, so normal graph reads stay unchanged.
+        if driver is not None and not graph.get("nodes"):
+            try:
+                from backend.sync_assets import synchronize_assets
+                from backend.sync_network_relationships import synchronize_network_relationships
+
+                asset_sync = synchronize_assets(organization_id)
+                if asset_sync.get("synchronized", 0):
+                    synchronize_network_relationships(organization_id)
+                    graph = graph_data(organization_id)
+            except Exception:
+                logger.exception(
+                    "Automatic graph synchronization failed for organization %s",
+                    organization_id or "ALL",
+                )
+
+        return graph
     except HTTPException:
         raise
     except Exception as exc:

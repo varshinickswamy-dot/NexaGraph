@@ -42,6 +42,71 @@ type NetworkTopologyProps = {
   theme?: "dark" | "light";
 };
 
+type LegacyGraphResponse = {
+  nodes?: Array<Record<string, unknown>>;
+  edges?: Array<Record<string, unknown>>;
+};
+
+async function fetchTopologyWithLegacyFallback(): Promise<TopologyResponse> {
+  const response = await authenticatedFetch("/network/topology");
+  if (!response.ok) {
+    throw new Error(`Unable to load network topology. Server returned ${response.status}.`);
+  }
+
+  const primary = (await response.json()) as TopologyResponse;
+  if (
+    !primary.success ||
+    !Array.isArray(primary.nodes) ||
+    !Array.isArray(primary.edges)
+  ) {
+    throw new Error("Invalid network topology response.");
+  }
+
+  // Older NexaGraph installations stored assets and connections in Neo4j.
+  // The PostgreSQL topology endpoint can be empty while that graph still has data.
+  if (primary.nodes.length > 0) return primary;
+
+  const legacyResponse = await authenticatedFetch("/graph");
+  if (!legacyResponse.ok) return primary;
+
+  const legacy = (await legacyResponse.json()) as LegacyGraphResponse;
+  if (!Array.isArray(legacy.nodes) || legacy.nodes.length === 0) return primary;
+
+  const nodes: TopologyNode[] = legacy.nodes
+    .filter((node) => node.id !== undefined && node.id !== null)
+    .map((node) => ({
+      id: String(node.id),
+      database_id: String(node.postgres_asset_id ?? node.graph_asset_id ?? node.id),
+      name: String(node.name ?? node.id),
+      type: node.type == null ? null : String(node.type),
+      ip_address: node.ip == null ? null : String(node.ip),
+      criticality: node.criticality == null ? null : String(node.criticality),
+      environment: node.environment == null ? null : String(node.environment),
+    }));
+
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  const edges: TopologyEdge[] = (legacy.edges ?? [])
+    .map((edge, index) => ({
+      id: String(edge.id ?? `legacy-edge-${index}`),
+      source: String(edge.source ?? ""),
+      target: String(edge.target ?? ""),
+      relationship_type: String(edge.relationship_type ?? edge.relationship ?? "CONNECTS"),
+      protocol: edge.protocol == null ? null : String(edge.protocol),
+      port: typeof edge.port === "number" ? edge.port : null,
+      direction: String(edge.direction ?? "BIDIRECTIONAL"),
+      status: String(edge.status ?? "ACTIVE"),
+      description: edge.description == null ? null : String(edge.description),
+    }))
+    .filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target));
+
+  return {
+    success: true,
+    summary: { total_assets: nodes.length, total_relationships: edges.length },
+    nodes,
+    edges,
+  };
+}
+
 type VulnerabilityRow = {
   graph_asset_id: string;
   severity: string;
@@ -132,24 +197,7 @@ export default function NetworkTopology({ theme = "dark" }: NetworkTopologyProps
       setLoading(true);
       setError("");
 
-      const response = await authenticatedFetch("/network/topology");
-
-      if (!response.ok) {
-        throw new Error(
-          `Unable to load network topology. Server returned ${response.status}.`
-        );
-      }
-
-      const result: TopologyResponse = await response.json();
-
-      if (
-        !result.success ||
-        !Array.isArray(result.nodes) ||
-        !Array.isArray(result.edges)
-      ) {
-        throw new Error("Invalid network topology response.");
-      }
-
+      const result = await fetchTopologyWithLegacyFallback();
       const enrichedResult = await addVulnerabilityRisk(result);
       setData(enrichedResult);
       setSelectedNode(null);
@@ -173,24 +221,7 @@ export default function NetworkTopology({ theme = "dark" }: NetworkTopologyProps
 
     const fetchInitialTopology = async () => {
       try {
-        const response = await authenticatedFetch("/network/topology");
-
-        if (!response.ok) {
-          throw new Error(
-            `Unable to load network topology. Server returned ${response.status}.`
-          );
-        }
-
-        const result: TopologyResponse = await response.json();
-
-        if (
-          !result.success ||
-          !Array.isArray(result.nodes) ||
-          !Array.isArray(result.edges)
-        ) {
-          throw new Error("Invalid network topology response.");
-        }
-
+        const result = await fetchTopologyWithLegacyFallback();
         const enrichedResult = await addVulnerabilityRisk(result);
 
         if (!cancelled) {
